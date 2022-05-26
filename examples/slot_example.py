@@ -19,8 +19,8 @@ class UsernameSlot(Slot):
     name: SlotName = "username"
     value: Optional[str] = None
 
-    @classmethod
-    def get_value(cls, ctx: Context, actor: Actor):
+    @staticmethod
+    def get_value(ctx: Context, actor: Actor):
         match = re.search(r"username is ([a-zA-Z]+)", ctx.last_request)
         return match.group(1) if match else match
 
@@ -29,8 +29,8 @@ class EmailSlot(Slot):
     name: SlotName = "birth_date"
     value: Optional[date] = None
 
-    @classmethod
-    def get_value(cls, ctx: Context, actor: Actor):
+    @staticmethod
+    def get_value(ctx: Context, actor: Actor):
         match = re.search(r"(\d{4,}-\d{2,}-\d{2,})", ctx.last_request)
         return match.group(1) if match else match
 
