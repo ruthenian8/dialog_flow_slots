@@ -9,7 +9,7 @@ from df_generics import Response
 
 from .types import Slot
 
-
+"{x.one}{y.other}"
 class SlotHandler(BaseModel):
     class Config:
         extra = Extra.allow
@@ -56,7 +56,7 @@ def slot_is_set(self, slot: Slot):
         return bool(
             "slots" in ctx.framework_states
             and ctx.framework_states["slots"].has_slot(slot)
-            and ctx.framework_states["slots"].get_slot(slot).is_set()
+            and ctx.framework_states["slots"].extract_slot(slot).is_set()
         )
 
     return is_set_inner

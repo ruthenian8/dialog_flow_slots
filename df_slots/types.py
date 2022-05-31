@@ -14,10 +14,10 @@ Slot = ForwardRef("Slot")
 
 @dataclass
 class Slot():
-    children: weakref.WeakValueDictionary[str, Slot] =  weakref.WeakValueDictionary()
-    parent: Optional[Slot] = None
-    name: str = Required
-    value: Any = None
+    _children: weakref.WeakValueDictionary[str, Slot] =  weakref.WeakValueDictionary()
+    _parent: Optional[Slot] = None
+    _name: str = Required
+    _value: Any = None
 
     def __post_init__(self):
         for child in self.children.values():
@@ -32,12 +32,6 @@ class Slot():
 
     def has_children(self):
         return len(self.children) > 0
-
-    def is_set(self):
-        if self.has_children():
-            return all(map(lambda child: child.is_set(), self.children.values()))
-        else:
-            return self.value is not None
 
     def __eq__(self, other: Slot):
         return self.dict(exclude={"name"}) == other.dict(exclude={"name"})
@@ -62,16 +56,58 @@ class Slot():
             return new_children
         return children
 
-    def get_value(self, ctx: Context, actor: Actor):
+    def extract_value(self, ctx: Context, actor: Actor):
         for child in self.children.values():
-            child.get_value(ctx, actor)
+            child.extract_value(ctx, actor)
+        self.init_value(ctx, actor)
+        return self.value
+
+    def init_value(self, ctx: Context, actor: Actor):
+        raise NotImplementedError("")
+
+    def is_set(self):
+        raise NotImplementedError("")
+
+    def fill_template(self):
+        raise NotImplementedError("")
+
 
 
 class RegexpSlot(Slot):
     _regexp: Optional[re.Pattern] = Field(default=None, alias="regexp")
 
-    def get_value(self, ctx: Context, actor: Actor):
-        super(RegexpSlot, self).get_value(ctx, actor)
+    def init_value(self, ctx: Context, actor: Actor):
+        super(RegexpSlot, self).extract_value(ctx, actor)
         search = re.search(self._regexp, ctx.last_request)
         self.value = search.group() if search else None
+
+    def is_set(self):
+        return self.value is not None
+
+    def fill_template(self, template: str):
+        return template.format(**{self._name:self.value})
+
+class GroupSlot(Slot):
+    def init_value(self, ctx: Context, actor: Actor):
+        pass
+
+    def is_set(self):
+        return all(map(lambda child: child.is_set(), self.children.values()))
+
+s1, s2 = None,None
+gs = GroupSlot(name="group_slot",children=[s1, s2])
+
+def extract(ctx, actor):
+    return ctx
+
+def processing(ctx, actor):
+    ctx.misc["gs"] = gs.extract_value(ctx, actor)
+    ctx = extract(gs, ctx, actor)
+
+    gs.fill("{group_slot}{group_slot.s1}{group_slot.s2}", ctx, actor)
+
+
+gs.fill("{group_slot.s1}")
+
+gs.s1
 
