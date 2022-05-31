@@ -15,33 +15,45 @@ from example_utils import run_interactive_mode
 slot_handler = SlotHandler()
 
 
-class UsernameSlot(Slot):
-    name: SlotName = "username"
-    value: Optional[str] = None
-
-    @staticmethod
-    def get_value(ctx: Context, actor: Actor):
-        match = re.search(r"username is ([a-zA-Z]+)", ctx.last_request)
-        return match.group(1) if match else match
 
 
-class EmailSlot(Slot):
-    name: SlotName = "birth_date"
-    value: Optional[date] = None
+# class UsernameSlot(Slot):
+#     name: SlotName = "username"
+#     value: Optional[str] = None
 
-    @staticmethod
-    def get_value(ctx: Context, actor: Actor):
-        match = re.search(r"(\d{4,}-\d{2,}-\d{2,})", ctx.last_request)
-        return match.group(1) if match else match
+#     @staticmethod
+#     def get_value(ctx: Context, actor: Actor):
+#         match = re.search(r"username is ([a-zA-Z]+)", ctx.last_request)
+#         return match.group(1) if match else match
+
+
+# class EmailSlot(Slot):
+#     name: SlotName = "birth_date"
+#     value: Optional[date] = None
+
+#     @staticmethod
+#     def get_value(ctx: Context, actor: Actor):
+#         match = re.search(r"(\d{4,}-\d{2,}-\d{2,})", ctx.last_request)
+#         return match.group(1) if match else match
+
+def set_regexp_slot(self, name: str, regexp: str):
+    @classmethod
+    def get_value(cls, ctx: Context, actor: Actor):
+        string = ctx.last_request
+        return re.search(regexp, string).group()
+    slot = type(name, (), {"get_value": get_value})
+    self.set_slot(slot)
+
+slot_handler.set_regexp_slot = set_regexp_slot
 
 
 script = {
     GLOBAL: {TRANSITIONS: {("username_flow", "ask"): cnd.regexp(r"^[sS]tart")}},
     "username_flow": {
         LOCAL: {
-            PROCESSING: {"get_slot": slot_handler.set_slot(UsernameSlot)},
+            PROCESSING: {"get_slot": slot_handler.set_regexp_slot(name="username", regexp=r"username is ([a-zA-Z]+)")},
             TRANSITIONS: {
-                ("email_flow", "ask", 1.2): slot_handler.slot_is_set(UsernameSlot),
+                ("email_flow", "ask", 1.2): slot_handler.slot_is_set("username"),
                 ("username_flow", "repeat_question", 0.8): cnd.true(),
             },
         },
