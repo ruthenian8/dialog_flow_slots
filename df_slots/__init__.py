@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .handler import SlotHandler
+from .handler import *
 from .slot_types import BaseSlot, ValueSlot, GroupSlot, RegexpSlot
 
 __author__ = "Daniil Ignatiev"

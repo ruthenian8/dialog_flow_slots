@@ -34,13 +34,14 @@ class SlotHandler(BaseModel):
         name = slot if isinstance(slot, str) else slot.name
         return getattr(self, name)
 
+def create_slot_storage(actor: Actor):
+    def create_slot_storage_inner(ctx: Context, actor: Actor, *args, **kwargs):
+        if "slots" not in ctx.framework_states:
+            ctx.framework_states["slots"] = SlotHandler()
+    actor.handlers[ActorStage.CONTEXT_INIT] = create_slot_storage_inner
 
-def create_slot_storage(self, ctx: Context, actor: Actor, *args, **kwargs):
-    if "slots" not in ctx.framework_states:
-        ctx.framework_states["slots"] = SlotHandler()
 
-
-def set_slot(self, slot: BaseSlot):
+def set_slot(slot: BaseSlot):
     def set_slot_inner(ctx: Context, actor: Actor):
         slot.extract_value(ctx, actor)
         if not slot.is_set():
@@ -51,7 +52,7 @@ def set_slot(self, slot: BaseSlot):
     return set_slot_inner
 
 
-def slot_is_set(self, slot: BaseSlot):
+def slot_is_set(slot: BaseSlot):
     def is_set_inner(ctx: Context, actor: Actor):
         return bool(
             "slots" in ctx.framework_states
