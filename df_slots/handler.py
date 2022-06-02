@@ -7,28 +7,28 @@ from df_engine.core.types import ActorStage
 
 from df_generics import Response
 
-from .types import Slot
+from slot_types import BaseSlot
 
-"{x.one}{y.other}"
+
 class SlotHandler(BaseModel):
     class Config:
         extra = Extra.allow
     
-    def has_slot(self, slot: Union[Slot, str]) -> bool:
+    def has_slot(self, slot: Union[BaseSlot, str]) -> bool:
         if isinstance(slot, str):
             return hasattr(self, slot)
         return hasattr(self, slot.name)
 
-    def slot_is_set(self, slot: Union[Slot, str]) -> bool:
+    def slot_is_set(self, slot: Union[BaseSlot, str]) -> bool:
         slot = self.get_slot(slot)
         if not slot:
             return False
         return slot.is_set()
 
-    def set_slot(self, slot: Slot):
+    def set_slot(self, slot: BaseSlot):
         setattr(self, slot.name, slot)
 
-    def get_slot(self, slot: Union[Slot, str]) -> Slot:
+    def get_slot(self, slot: Union[BaseSlot, str]) -> BaseSlot:
         if not self.has_slot(slot):
             return None
         name = slot if isinstance(slot, str) else slot.name
@@ -40,9 +40,9 @@ def create_slot_storage(self, ctx: Context, actor: Actor, *args, **kwargs):
         ctx.framework_states["slots"] = SlotHandler()
 
 
-def set_slot(self, slot: Slot):
+def set_slot(self, slot: BaseSlot):
     def set_slot_inner(ctx: Context, actor: Actor):
-        slot.get_value(ctx, actor)
+        slot.extract_value(ctx, actor)
         if not slot.is_set():
             return ctx
         ctx.framework_states["slots"].set_slot(slot)
@@ -51,12 +51,12 @@ def set_slot(self, slot: Slot):
     return set_slot_inner
 
 
-def slot_is_set(self, slot: Slot):
+def slot_is_set(self, slot: BaseSlot):
     def is_set_inner(ctx: Context, actor: Actor):
         return bool(
             "slots" in ctx.framework_states
             and ctx.framework_states["slots"].has_slot(slot)
-            and ctx.framework_states["slots"].extract_slot(slot).is_set()
+            and ctx.framework_states["slots"].get_slot(slot).is_set()
         )
 
     return is_set_inner

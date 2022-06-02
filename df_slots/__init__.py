@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from .handler import SlotHandler
-from .types import Slot
+from .slot_types import BaseSlot, ValueSlot, GroupSlot, RegexpSlot
 
 __author__ = "Daniil Ignatiev"
 __email__ = "ruthenian8@gmail.com"
