@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Callable, Optional, List
 
 from pydantic import BaseModel, Extra
 
@@ -7,7 +7,7 @@ from df_engine.core.types import ActorStage
 
 from df_generics import Response
 
-from slot_types import BaseSlot
+from .slot_types import BaseSlot, ValueSlot, GroupSlot
 
 
 class SlotHandler(BaseModel):
@@ -25,7 +25,7 @@ class SlotHandler(BaseModel):
             return False
         return slot.is_set()
 
-    def set_slot(self, slot: BaseSlot):
+    def add_slot(self, slot: BaseSlot) -> None:
         setattr(self, slot.name, slot)
 
     def get_slot(self, slot: Union[BaseSlot, str]) -> BaseSlot:
@@ -34,31 +34,59 @@ class SlotHandler(BaseModel):
         name = slot if isinstance(slot, str) else slot.name
         return getattr(self, name)
 
-def create_slot_storage(actor: Actor):
-    def create_slot_storage_inner(ctx: Context, actor: Actor, *args, **kwargs):
-        if "slots" not in ctx.framework_states:
-            ctx.framework_states["slots"] = SlotHandler()
-    actor.handlers[ActorStage.CONTEXT_INIT] = create_slot_storage_inner
+
+def create_slot_handler(actor: Actor, slots: Optional[List[BaseSlot]] = None) -> None:
+    if slots is None:
+        slots = []
+
+    def create_slot_storage_inner(ctx: Context, actor: Actor, *args, **kwargs) -> None:
+        if "slots" in ctx.framework_states:
+            return
+        handler = SlotHandler()
+        for slot in slots:
+            handler.add_slot(slot)
+        ctx.framework_states["slots"] = handler
+        return
+
+    if ActorStage.CONTEXT_INIT not in actor.handlers:
+        actor.handlers[ActorStage.CONTEXT_INIT] = []
+    actor.handlers[ActorStage.CONTEXT_INIT] += [create_slot_storage_inner]
 
 
-def set_slot(slot: BaseSlot):
-    def set_slot_inner(ctx: Context, actor: Actor):
-        slot.extract_value(ctx, actor)
-        if not slot.is_set():
-            return ctx
-        ctx.framework_states["slots"].set_slot(slot)
+def add_slot(slot: BaseSlot) -> Callable:
+    def add_slot_inner(ctx: Context, actor: Actor) -> Context:
+        handler: SlotHandler = ctx.framework_states["slots"]
+        handler.add_slot(slot)
         return ctx
 
-    return set_slot_inner
+    return add_slot_inner
 
 
-def slot_is_set(slot: BaseSlot):
-    def is_set_inner(ctx: Context, actor: Actor):
-        return bool(
-            "slots" in ctx.framework_states
-            and ctx.framework_states["slots"].has_slot(slot)
-            and ctx.framework_states["slots"].get_slot(slot).is_set()
-        )
+def get_slot(ctx: Context, slot: Union[BaseSlot, str]) -> Optional[BaseSlot]:
+    ctx_slot: Union[None, GroupSlot, ValueSlot] = (
+        "slots" in ctx.framework_states
+        and ctx.framework_states["slots"].has_slot(slot)
+        and ctx.framework_states["slots"].get_slot(slot)
+    )
+    return ctx_slot if ctx_slot else None
+
+
+def extract_slot(slot: BaseSlot) -> Callable:
+    def extract_slot_inner(ctx: Context, actor: Actor) -> Context:
+        ctx_slot: Union[None, GroupSlot, ValueSlot] = get_slot(ctx, slot)
+        if ctx_slot is not None:
+            ctx_slot.extract_value(ctx, actor)
+        return ctx
+    
+    return extract_slot_inner
+
+
+def slot_is_set(slot: Union[BaseSlot, str]) -> Callable:
+    def is_set_inner(ctx: Context, actor: Actor) -> bool:
+        ctx_slot: Union[None, GroupSlot, ValueSlot] = get_slot(ctx, slot)
+        if ctx_slot is None: 
+            return False
+        return ctx_slot.is_set()
 
     return is_set_inner
 

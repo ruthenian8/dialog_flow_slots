@@ -1,136 +1,88 @@
 import re
-import json
-import weakref
-from typing import Optional, Any
+from typing import Callable, List, Optional, Any, Dict
 
 from df_engine.core import Context, Actor
 
-from pydantic import BaseModel, Field, validator, Extra
-from pydantic.dataclasses import dataclass
+from pydantic import Field, BaseModel, validator
 from pydantic.typing import ForwardRef
 
 BaseSlot = ForwardRef("BaseSlot")
 
 
-class SlotStorage(BaseModel):
-    class Config():
-        extra = Extra.allow
-
-
-@dataclass
-class BaseSlot():
+class BaseSlot(BaseModel):
     name: str
-    children: weakref.WeakValueDictionary[str, BaseSlot] =  weakref.WeakValueDictionary()
-    parents: weakref.WeakValueDictionary[str, BaseSlot] =  weakref.WeakValueDictionary()
+    parent: Optional[BaseSlot] = None
     value: Any = None
 
-    def __post_init__(self):
-        for parent in self.parents.values():
-            parent.children[self.name] = self
-
-    def add_parent(self, parent: BaseSlot):
-        parent.children[self.name] = self
-        self.parents[parent.name] = parent
-
-    def remove_parent(self, parent: BaseSlot):
-        self.parents[parent.name].children.pop(self.name)
-        self.parents.pop(parent.name)
-
-    def has_parents(self):
-        return len(self.parents) > 0
-
-    @validator("children", pre=True)
-    def validate_children(cls, children):
-        is_dict = isinstance(children, weakref.WeakValueDictionary)
-        is_list = isinstance(children, list)
-        if not is_list and not is_dict:
-            raise ValueError(f"Inappropriate type: {str(type(children))}")
-        if is_list:
-            new_children = weakref.WeakValueDictionary()
-            item: BaseSlot
-            for item in children:
-                new_children[item.name] = item
-            return new_children
-        return children
-
-    @validator("parents", pre=True)
-    def validate_parents(cls, parents):
-        is_dict = isinstance(parents, weakref.WeakValueDictionary)
-        is_list = isinstance(parents, list)
-        if not is_list and not is_dict:
-            raise ValueError(f"Inappropriate type: {str(type(parents))}")
-        if is_list:
-            new_parents = weakref.WeakValueDictionary()
-            item: BaseSlot
-            for item in parents:
-                new_parents[item.name] = item
-            return new_parents
-        return parents
+    class Config():
+        arbitrary_types_allowed = True
 
     def __eq__(self, other: BaseSlot):
         return self.dict(exclude={"name"}) == other.dict(exclude={"name"})
 
-    def extract_value(self, ctx: Context, actor: Actor):
-        self.init_value(ctx, actor)
-        return self.value
-
-    def is_set(self):
-        return self.value is not None
+    def __getattr__(self, attr: str):
+        try:
+            value = self.__getattribute__(attr)
+        except AttributeError:
+            value = self.children.get(attr) or "" # for slot filling
+        return value
 
     def has_children(self):
-        raise NotImplementedError("")
-
-    def init_value(self, ctx: Context, actor: Actor):
-        raise NotImplementedError("")
+        raise NotImplementedError("Base class has no attribute 'value'")
 
     def is_set(self):
-        raise NotImplementedError("")
+        raise NotImplementedError("Base class has no attribute 'value'")
 
     def fill_template(self):
-        raise NotImplementedError("")
+        raise NotImplementedError("Base class has no attribute 'value'")
+
+    def extract_value(self, ctx: Context, actor: Actor):
+        raise NotImplementedError("Base class has no attribute 'value'")
+
+    def init_value(self, ctx: Context, actor: Actor):
+        raise NotImplementedError("Base class has no attribute 'value'")
 
 
 class GroupSlot(BaseSlot):
-    def __post_init__(self):
-        super().__post_init__()
-        for child in self.children.values():
-            child.parents[self.name] = self        
+    children: Dict[str, BaseSlot] = Field(default_factory=dict)
 
     def __str__(self):
-        return json.dumps(dict(self.value)) if self.value else ""
+        return f":Slot group {self.name}:"
 
     def add_child(self, child: BaseSlot):
-        child.parents[self.name] = self
         self.children[child.name] = child
+        child.parent = self
+
+    def add_children(self, children: Optional[List[BaseSlot]]):
+        for child in children:
+            self.add_child(child=child)
 
     def remove_child(self, child: BaseSlot):
-        self.children[child.name].parents.pop(self.name)
         self.children.pop(child.name)
-
-    def init_value(self, ctx: Context, actor: Actor):
-        values = SlotStorage()
-        for child in self.children.values():
-            if not child.value:
-                val = child.extract_value(ctx, actor)
-                if not val:
-                    self.value = None
-                    break
-            setattr(values, child.name, child.value)
-        self.value = values
+        child.parent = None
 
     def has_children(self):
         return len(self.children) > 0
 
-    def fill_template(self, template: str):
-        if not self.is_set():
-            return template
-        return template.format(**dict(self.value))
+    def is_set(self):
+        return all(child.is_set() for child in self.children.values())
 
-    def dict(self, *args, **kwargs):
-        return self.value.dict(*args, **kwargs)
-    
-    def json(self, *args, **kwargs):
-        return self.value.json(*args, *kwargs)
+    def fill_template(self, template: str) -> Callable:
+        def fill_inner(ctx: Context, actor: Actor):
+            if not self.is_set():
+                return template
+            return template.format(**self.children)
+
+        return fill_inner
+
+    def extract_value(self, ctx: Context, actor: Actor):
+        self.init_value(ctx, actor)
+        return self.children
+
+    def init_value(self, ctx: Context, actor: Actor):
+        for child in self.children.values():
+            if not child.value:
+                child.extract_value(ctx, actor)
 
 
 class ValueSlot(BaseSlot):
@@ -141,40 +93,29 @@ class ValueSlot(BaseSlot):
         return False
 
     def fill_template(self, template: str):
-        return template.format(**{self.name: self.value})
+        def fill_inner(ctx: Context, actor: Actor):
+            if not self.is_set():
+                return template
+            return template.format(**{self.name: self.value})
 
-    def dict(self, *args, **kwargs):
-        return {self.name: self.value}
+        return fill_inner
 
-    def json(self, *args, **kwargs):
-        return json.dumps({self.name, self.value})
+    def is_set(self):
+        return self.value is not None
 
 
 class RegexpSlot(ValueSlot):
     regexp: Optional[re.Pattern] = Field(default=None, alias="regexp")
+
+    @validator("regexp", pre=True)
+    def val_regexp(cls, reg):
+        if isinstance(reg, str):
+            return re.compile(reg)
+        return reg
 
     def init_value(self, ctx: Context, actor: Actor):
         search = re.search(self.regexp, ctx.last_request)
         self.value = search.group() if search else None
 
 
-
-
-
-# s1, s2 = None,None
-# gs = GroupSlot(name="group_slot",children=[s1, s2])
-
-# def extract(ctx, actor):
-#     return ctx
-
-# def processing(ctx, actor):
-#     ctx.misc["gs"] = gs.extract_value(ctx, actor)
-#     ctx = extract(gs, ctx, actor)
-
-#     gs.fill("{group_slot}{group_slot.s1}{group_slot.s2}", ctx, actor)
-
-
-# gs.fill("{group_slot.s1}")
-
-# gs.s1
-
+BaseSlot.update_forward_refs()
