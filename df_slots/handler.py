@@ -1,4 +1,5 @@
 from typing import Union, Callable, Optional, List
+from copy import copy
 
 from pydantic import BaseModel, Extra
 
@@ -13,13 +14,20 @@ from .slot_types import BaseSlot, ValueSlot, GroupSlot
 class SlotHandler(BaseModel):
     class Config:
         extra = Extra.allow
-    
-    def has_slot(self, slot: Union[BaseSlot, str]) -> bool:
-        if isinstance(slot, str):
-            return hasattr(self, slot)
-        return hasattr(self, slot.name)
 
-    def slot_is_set(self, slot: Union[BaseSlot, str]) -> bool:
+    def __deepcopy__(self, *args, **kwargs):
+        return copy(self)
+
+    def has_slot(self, slot: str) -> bool:
+        target = self
+        for subslot in slot.split("."):
+            try:
+                target = getattr(target, subslot)
+            except AttributeError:
+                return False
+        return True
+
+    def slot_is_set(self, slot: str) -> bool:
         slot = self.get_slot(slot)
         if not slot:
             return False
@@ -28,11 +36,14 @@ class SlotHandler(BaseModel):
     def add_slot(self, slot: BaseSlot) -> None:
         setattr(self, slot.name, slot)
 
-    def get_slot(self, slot: Union[BaseSlot, str]) -> BaseSlot:
-        if not self.has_slot(slot):
-            return None
-        name = slot if isinstance(slot, str) else slot.name
-        return getattr(self, name)
+    def get_slot(self, slot: str) -> BaseSlot:
+        target = self
+        for subslot in slot.split("."):
+            try:
+                target = getattr(target, subslot)
+            except AttributeError:
+                return None
+        return target
 
 
 def create_slot_handler(actor: Actor, slots: Optional[List[BaseSlot]] = None) -> None:
@@ -48,9 +59,8 @@ def create_slot_handler(actor: Actor, slots: Optional[List[BaseSlot]] = None) ->
         ctx.framework_states["slots"] = handler
         return
 
-    if ActorStage.CONTEXT_INIT not in actor.handlers:
-        actor.handlers[ActorStage.CONTEXT_INIT] = []
-    actor.handlers[ActorStage.CONTEXT_INIT] += [create_slot_storage_inner]
+    actor.handlers[ActorStage.CONTEXT_INIT] = actor.handlers.get(ActorStage.CONTEXT_INIT, []) + [create_slot_storage_inner]
+
 
 
 def add_slot(slot: BaseSlot) -> Callable:
@@ -74,7 +84,9 @@ def get_slot(ctx: Context, slot: Union[BaseSlot, str]) -> Optional[BaseSlot]:
 def extract_slot(slot: BaseSlot) -> Callable:
     def extract_slot_inner(ctx: Context, actor: Actor) -> Context:
         ctx_slot: Union[None, GroupSlot, ValueSlot] = get_slot(ctx, slot)
+        print("extracting")
         if ctx_slot is not None:
+            print("not none")
             ctx_slot.extract_value(ctx, actor)
         return ctx
     

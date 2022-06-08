@@ -21,9 +21,9 @@ script = {
     GLOBAL: {TRANSITIONS: {("username_flow", "ask"): cnd.regexp(r"^[sS]tart")}},
     "username_flow": {
         LOCAL: {
-            PROCESSING: {"get_slot": extract_slot(username_slot)},
+            PROCESSING: {"get_slot": extract_slot("person_slot.username_slot")},
             TRANSITIONS: {
-                ("email_flow", "ask", 1.2): cnd.all([slot_is_set("username"), slot_is_set(username_slot)]),
+                ("email_flow", "ask", 1.2): cnd.all([slot_is_set("person_slot.email_slot")]),
                 ("username_flow", "repeat_question", 0.8): cnd.true(),
             },
         },
@@ -34,9 +34,9 @@ script = {
     },
     "email_flow": {
         LOCAL: {
-            PROCESSING: {"get_slot": extract_slot(email_slot)},
+            PROCESSING: {"get_slot": extract_slot("person_slot.email_slot")},
             TRANSITIONS: {
-                ("root", "utter", 1.2): cnd.all([slot_is_set("email"), slot_is_set(email_slot)]),
+                ("root", "utter", 1.2): cnd.all([slot_is_set("person_slot.email_slot")]),
                 ("email_flow", "repeat_question", 0.8): cnd.true(),
             },
         },
@@ -62,7 +62,6 @@ script = {
 
 actor = Actor(script=script, start_label=("root", "start"), fallback_label=("root", "fallback"), )
 create_slot_handler(actor, slots=[person_slot])
-
 
 if __name__ == "__main__":
     logging.basicConfig(
