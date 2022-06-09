@@ -45,7 +45,7 @@ lint: venv
 .PHONY: lint
 
 test: venv
-	$(VENV_PATH)/bin/python -m pytest --cov-report html --cov-report term --cov=dialog_flow_slots tests/
+	$(VENV_PATH)/bin/python -m pytest --cov-report html --cov-report term --cov=df_slots tests/
 .PHONY: test
 
 test_all: venv test lint
