@@ -1,10 +1,8 @@
-import os
-import sys
 import logging
 
 from df_engine import conditions as cnd
 from df_engine.core.keywords import RESPONSE, TRANSITIONS, PROCESSING, GLOBAL, LOCAL
-from df_engine.core import Context, Actor
+from df_engine.core import Actor
 
 import df_slots
 from df_slots import conditions as slot_cnd
@@ -22,8 +20,8 @@ friend_slot = df_slots.GroupSlot(
     name="friend",
     children=[
         df_slots.RegexpSlot(name="first_name", regexp=r"^[A-Z][a-z]+?(?= )"),
-        df_slots.RegexpSlot(name="last_name", regexp=r"(?<= )[A-Z][a-z]+")
-    ]
+        df_slots.RegexpSlot(name="last_name", regexp=r"(?<= )[A-Z][a-z]+"),
+    ],
 )
 df_slots.register_slots([person_slot, friend_slot])
 
@@ -60,15 +58,11 @@ script = {
             PROCESSING: {"get_slots": slot_procs.extract(["friend"])},
             TRANSITIONS: {
                 ("root", "utter", 1.2): slot_cnd.any_set(["friend.first_name", "friend.last_name"]),
-                ("friend_flow", "repeat_question", 0.8): cnd.true()
-            }
+                ("friend_flow", "repeat_question", 0.8): cnd.true(),
+            },
         },
-        "ask": {
-            RESPONSE: "Please, name me one of your friends: (John Doe)"
-        },
-        "repeat_question": {
-            RESPONSE: "Please, name me one of your friends again: (John Doe)"
-        }
+        "ask": {RESPONSE: "Please, name me one of your friends: (John Doe)"},
+        "repeat_question": {RESPONSE: "Please, name me one of your friends again: (John Doe)"},
     },
     "root": {
         "start": {RESPONSE: "", TRANSITIONS: {("username_flow", "ask"): cnd.true()}},
@@ -78,7 +72,8 @@ script = {
             TRANSITIONS: {("root", "utter_alternative"): cnd.true()},
         },
         "utter_alternative": {
-            RESPONSE: slot_rps.fill_template("Your username is {person.username}. Your email is {person.email}."),
+            RESPONSE: "Your username is {person.username}. Your email is {person.email}.",
+            PROCESSING: {"fill": slot_procs.fill_template()},
             TRANSITIONS: {("root", "fallback"): cnd.true()},
         },
     },
@@ -93,7 +88,7 @@ testing_dialog = [
     ("Bob Page", "Please, name me one of your friends again: (John Doe)"),
     ("Bob Page", "Your friend is called Bob Page"),
     ("ok", "Your username is groot. Your email is groot@gmail.com."),
-    ("ok", "Finishing query")
+    ("ok", "Finishing query"),
 ]
 
 actor = Actor(
@@ -101,7 +96,7 @@ actor = Actor(
     start_label=("root", "start"),
     fallback_label=("root", "fallback"),
 )
-df_slots.register_root(actor, root=df_slots.root)
+df_slots.register_storage(actor, storage=dict())
 
 if __name__ == "__main__":
     logging.basicConfig(

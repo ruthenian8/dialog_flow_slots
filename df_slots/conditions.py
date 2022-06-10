@@ -4,18 +4,16 @@ from functools import partial
 
 from df_engine.core import Context, Actor
 
+from .root import root
+
 logger = logging.getLogger(__name__)
 
 
-def is_set(slots: List[str], use_all: bool = True, use_any: bool = False) -> Callable:
+def is_set(slots: List[str], use_all: bool = True, use_any: bool = False, root: dict = root) -> Callable:
     if use_all == use_any:
         raise ValueError("Parameters `use_all` and `use_any` are mutually exclusive.")
 
     def is_set_inner(ctx: Context, actor: Actor) -> bool:
-        root = ctx.framework_states.get("slots")
-        if not root:
-            logger.info("Failed to check slot: root slot not in context")
-            return False
         slots_set = [root.get(slot).is_set() if slot in root else False for slot in slots]
         if use_all:
             return all(slots_set)

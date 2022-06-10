@@ -4,30 +4,31 @@ from typing import Union, List, Callable
 from df_engine.core import Context, Actor
 from df_generics import Response
 
+from .root import root
+
 logger = logging.getLogger(__name__)
 
 
-def extract(slots: Union[None, List[str]]) -> Callable:
+def extract(slots: Union[None, List[str]], root: dict = root) -> Callable:
     def extract_inner(ctx: Context, actor: Actor):
-        root = ctx.framework_states.get("slots")
-        if not root:
-            logger.info("Failed to extract slots: root slot not in context")
+        storage = ctx.framework_states.get("slots")
+        if storage is None:
+            logger.warning("Failed to extract slots: storage not in context")
             return ctx
 
         target_names = slots or list(root.keys())
         for key in target_names:
-            ctx.framework_states.get("slots").get(key).init_value(ctx, actor)
+            if not key in root:
+                continue
+            val = root.get(key).extract_value(ctx, actor)
+            ctx.framework_states["slots"][key] = val
         return ctx
 
     return extract_inner
 
 
-def fill_template():
+def fill_template(root: dict = root):
     def fill_inner(ctx: Context, actor: Actor):
-        root = ctx.framework_states.get("slots")
-        if not root:
-            logger.info("Failed to fill the template: root slot not in context")
-            return ctx
 
         response = ctx.framework_states["actor"]["processed_node"].response
         if callable(response):
