@@ -1,7 +1,6 @@
-import re
+import os
+import sys
 import logging
-from typing import Optional
-from datetime import date
 
 from df_engine import conditions as cnd
 from df_engine.core.keywords import RESPONSE, TRANSITIONS, PROCESSING, GLOBAL, LOCAL
@@ -12,54 +11,29 @@ from df_slots import conditions as slot_cnd
 from df_slots import processing as slot_procs
 from df_slots import response as slot_rps
 
-from .example_utils import run_interactive_mode
+from examples import example_utils
 
-username_slot = df_slots.RegexpSlot(name="username", regexp=r"username is ([a-zA-Z]+)")
-email_slot = df_slots.RegexpSlot(name="email", regexp=r"email is ([a-zA-Z]+)")
+logger = logging.getLogger(__name__)
+
+username_slot = df_slots.RegexpSlot(name="username", regexp=r"(?<=username is )[a-zA-Z]+")
+email_slot = df_slots.RegexpSlot(name="email", regexp=r"(?<=email is )[a-z@\.A-Z]+")
 person_slot = df_slots.GroupSlot(name="person", children=[username_slot, email_slot])
-
-
-#######
-# import df_slots
-# from df_slots import processing as slot_procs
-# from df_slots import response as slot_rps
-
-# root_hold = True
-# root = {}
-
-# ####### Slot's Structure #######
-# username = df_slots.RegexpSlot(name="username", regexp=r"username is ([a-zA-Z]+)")
-# username1 = df_slots.RegexpSlot(name="username", regexp=r"username is ([a-zA-Z]+)")
-# email = df_slots.FuncSlot(name="email", custom_extract, custom_fill_tempalte)
-# profile = df_slots.TreeSlot(name="profile", [username, email])
-
-# df_slots.set_root_slots([profile, username]) # same names are rewrited by default
-
-# ####### Slot Usage in Script #######
-# PROCESSING: slot_procs.extract() # slot_procs.extract(["username", "profile"])
-# PROCESSING: slot_procs.fill_template()
-# RESPONSE: slot_rps.fill_template("{profile.username}{username}")
-
-
-# ####### Slot Usage in function #######
-# def response(ctx, actor):
-#     ctx = df_slots.extract(ctx, actor) # df_slots.extract(ctx, actor, ["profile.username"]) 
-#     # ctx = df_slots.extract(ctx, actor, ["username"])
-#     profile_value, username_value = df_slots.get_values(ctx, actor) # df_slots.extract(ctx, actor, ["profile", "username"])
-#     _email, _username, _p_username = df_slots.get_values(ctx, actor, ["profile.email", "username", "profile.username"]) # ???
-#     response_str = df_slots.get_filled_template("{profile.username}", ctx, actor)
-#     response_str = df_slots.get_filled_template("{username}", ctx, actor, "profile")
-#     return response_str
-
-
+friend_slot = df_slots.GroupSlot(
+    name="friend",
+    children=[
+        df_slots.RegexpSlot(name="first_name", regexp=r"^[A-Z][a-z]+?(?= )"),
+        df_slots.RegexpSlot(name="last_name", regexp=r"(?<= )[A-Z][a-z]+")
+    ]
+)
+df_slots.register_slots([person_slot, friend_slot])
 
 script = {
     GLOBAL: {TRANSITIONS: {("username_flow", "ask"): cnd.regexp(r"^[sS]tart")}},
     "username_flow": {
         LOCAL: {
-            PROCESSING: {"get_slot": extract_slot("person.username")},
+            PROCESSING: {"get_slot": slot_procs.extract(["person.username"])},
             TRANSITIONS: {
-                ("email_flow", "ask", 1.2): cnd.all([slot_is_set("person.username")]),
+                ("email_flow", "ask", 1.2): slot_cnd.all_set(["person.username"]),
                 ("username_flow", "repeat_question", 0.8): cnd.true(),
             },
         },
@@ -70,9 +44,9 @@ script = {
     },
     "email_flow": {
         LOCAL: {
-            PROCESSING: {"get_slot": extract_slot("person.email")},
+            PROCESSING: {"get_slot": slot_procs.extract(["person.email"])},
             TRANSITIONS: {
-                ("root", "utter", 1.2): cnd.all([slot_is_set("person.email")]),
+                ("friend_flow", "ask", 1.2): slot_cnd.all_set(["person.username", "person.email"]),
                 ("email_flow", "repeat_question", 0.8): cnd.true(),
             },
         },
@@ -81,27 +55,57 @@ script = {
         },
         "repeat_question": {RESPONSE: "Please, write your email again (my email is ...):"},
     },
+    "friend_flow": {
+        LOCAL: {
+            PROCESSING: {"get_slots": slot_procs.extract(["friend"])},
+            TRANSITIONS: {
+                ("root", "utter", 1.2): slot_cnd.any_set(["friend.first_name", "friend.last_name"]),
+                ("friend_flow", "repeat_question", 0.8): cnd.true()
+            }
+        },
+        "ask": {
+            RESPONSE: "Please, name me one of your friends: (John Doe)"
+        },
+        "repeat_question": {
+            RESPONSE: "Please, name me one of your friends again: (John Doe)"
+        }
+    },
     "root": {
         "start": {RESPONSE: "", TRANSITIONS: {("username_flow", "ask"): cnd.true()}},
         "fallback": {RESPONSE: "Finishing query", TRANSITIONS: {("username_flow", "ask"): cnd.true()}},
         "utter": {
-            RESPONSE: person_slot.fill_template("Your username is {username}"),
-            TRANSITIONS: {("root", "utter_alternative"): cnd.true()}
+            RESPONSE: slot_rps.fill_template("Your friend is called {friend.first_name} {friend.last_name}"),
+            TRANSITIONS: {("root", "utter_alternative"): cnd.true()},
         },
         "utter_alternative": {
-            RESPONSE: "Your username is {person.username}. Your email is {person.email}.",
-            PROCESSING: {"slot_filling": fill_slots},
+            RESPONSE: slot_rps.fill_template("Your username is {person.username}. Your email is {person.email}."),
             TRANSITIONS: {("root", "fallback"): cnd.true()},
-        }
+        },
     },
 }
 
-actor = Actor(script=script, start_label=("root", "start"), fallback_label=("root", "fallback"), )
-create_slot_handler(actor, slots=[person_slot])
+testing_dialog = [
+    ("hi", "Write your username (my username is ...):"),
+    ("my username is groot", "Please, type your username again (my username is ...):"),
+    ("my username is groot", "Write your email (my email is ...):"),
+    ("my email is groot@gmail.com", "Please, write your email again (my email is ...):"),
+    ("my email is groot@gmail.com", "Please, name me one of your friends: (John Doe)"),
+    ("Bob Page", "Please, name me one of your friends again: (John Doe)"),
+    ("Bob Page", "Your friend is called Bob Page"),
+    ("ok", "Your username is groot. Your email is groot@gmail.com."),
+    ("ok", "Finishing query")
+]
+
+actor = Actor(
+    script=script,
+    start_label=("root", "start"),
+    fallback_label=("root", "fallback"),
+)
+df_slots.register_root(actor, root=df_slots.root)
 
 if __name__ == "__main__":
     logging.basicConfig(
         format="%(asctime)s-%(name)15s:%(lineno)3s:%(funcName)20s():%(levelname)s - %(message)s",
         level=logging.INFO,
     )
-    run_interactive_mode(actor)
+    example_utils.run_interactive_mode(actor)

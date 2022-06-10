@@ -1,4 +1,5 @@
 import re
+from copy import copy
 from collections.abc import Iterable
 from typing import Callable, Optional, Any, Dict
 
@@ -13,14 +14,17 @@ BaseSlot = ForwardRef("BaseSlot")
 class BaseSlot(BaseModel):
     name: str
 
-    class Config():
+    class Config:
         arbitrary_types_allowed = True
+
+    def __deepcopy__(self, *args, **kwargs):
+        return copy(self)
 
     def __eq__(self, other: BaseSlot):
         return self.dict(exclude={"name"}) == other.dict(exclude={"name"})
 
     def has_children(self):
-        raise NotImplementedError("Base class has no attribute 'value'")
+        return hasattr(self, "children") and len(self.children) > 0
 
     def is_set(self):
         raise NotImplementedError("Base class has no attribute 'value'")
@@ -54,14 +58,11 @@ class GroupSlot(BaseSlot):
         try:
             value = self.__getattribute__(attr)
         except AttributeError:
-            value = self.children.get(attr) or "" # for slot filling
+            value = self.children.get(attr) or ""  # for slot filling
         return value
 
     def __str__(self):
         return f":Slot group {self.name}:"
-
-    def has_children(self):
-        return len(self.children) > 0
 
     def is_set(self):
         return all(child.is_set() for child in self.children.values())
@@ -84,10 +85,7 @@ class ValueSlot(BaseSlot):
     value: Any = None
 
     def __str__(self):
-        return str(self.value) if self.value else ""    
-
-    def has_children(self):
-        return False
+        return str(self.value) if self.value else ""
 
     def is_set(self):
         return self.value is not None

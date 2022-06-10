@@ -4,14 +4,16 @@ from typing import Union, List, Callable
 from df_engine.core import Context, Actor
 from df_generics import Response
 
+logger = logging.getLogger(__name__)
+
 
 def extract(slots: Union[None, List[str]]) -> Callable:
     def extract_inner(ctx: Context, actor: Actor):
         root = ctx.framework_states.get("slots")
         if not root:
-            logging.warning("Failed to extract slots: root slot not in context")
+            logger.info("Failed to extract slots: root slot not in context")
             return ctx
-        
+
         target_names = slots or list(root.keys())
         for key in target_names:
             ctx.framework_states.get("slots").get(key).init_value(ctx, actor)
@@ -24,7 +26,7 @@ def fill_template():
     def fill_inner(ctx: Context, actor: Actor):
         root = ctx.framework_states.get("slots")
         if not root:
-            logging.warning("Failed to fill the template: root slot not in context")
+            logger.info("Failed to fill the template: root slot not in context")
             return ctx
 
         response = ctx.framework_states["actor"]["processed_node"].response
@@ -37,5 +39,5 @@ def fill_template():
             ctx.framework_states["actor"]["processed_node"].response = response
 
         return ctx
-    
+
     return fill_inner

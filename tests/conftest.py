@@ -8,7 +8,7 @@ sys.path.insert(0, "../")
 
 from examples.slot_example import actor
 
-from df_slots.slot_types import slot_root, freeze_root
+from df_slots.root import root as slot_root
 
 
 @pytest.fixture
@@ -23,6 +23,6 @@ def testing_actor():
     yield actor
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def root():
     yield slot_root
