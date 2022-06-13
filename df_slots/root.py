@@ -29,7 +29,7 @@ def flatten_slot_tree(node: BaseSlot) -> Dict[str, BaseSlot]:
     if node.has_children():
         for name, child in node.children.items():
             old_child_name = child.name
-            child.name = ".".join([node.name, name])
+            child.name = "/".join([node.name, name])
             nodes.update(flatten_slot_tree(child))
             child.name = old_child_name
     return nodes

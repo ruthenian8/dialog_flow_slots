@@ -1,8 +1,11 @@
 import logging
 from typing import Union, List, Callable
+from functools import partial
 
 from df_engine.core import Context, Actor
 from df_generics import Response
+
+from df_slots.slot_types import BaseSlot, GroupSlot
 
 from .root import root
 
@@ -20,8 +23,12 @@ def extract(slots: Union[None, List[str]], root: dict = root) -> Callable:
         for key in target_names:
             if not key in root:
                 continue
-            val = root.get(key).extract_value(ctx, actor)
-            ctx.framework_states["slots"][key] = val
+            target_slot: BaseSlot = root.get(key)
+            val = target_slot.extract_value(ctx, actor)
+            if isinstance(target_slot, GroupSlot):
+                ctx.framework_states["slots"].update(val)
+            else:
+                ctx.framework_states["slots"][key] = val
         return ctx
 
     return extract_inner
@@ -42,3 +49,22 @@ def fill_template(root: dict = root):
         return ctx
 
     return fill_inner
+
+
+def is_set(slots: List[str], use_all: bool = True, use_any: bool = False, root: dict = root) -> Callable:
+    if use_all == use_any:
+        raise ValueError("Parameters `use_all` and `use_any` are mutually exclusive.")
+
+    def is_set_inner(ctx: Context, actor: Actor) -> bool:
+        slots_set = [root.get(slot).is_set() if slot in root else False for slot in slots]
+        if use_all:
+            return all(slots_set)
+        if use_any:
+            return any(slots_set)
+
+    return is_set_inner
+
+
+is_set_all = partial(is_set, use_all=True, use_any=False)
+
+is_set_any = partial(is_set, use_any=True, use_all=False)

@@ -5,7 +5,6 @@ from df_engine.core.keywords import RESPONSE, TRANSITIONS, PROCESSING, GLOBAL, L
 from df_engine.core import Actor
 
 import df_slots
-from df_slots import conditions as slot_cnd
 from df_slots import processing as slot_procs
 from df_slots import response as slot_rps
 
@@ -29,9 +28,9 @@ script = {
     GLOBAL: {TRANSITIONS: {("username_flow", "ask"): cnd.regexp(r"^[sS]tart")}},
     "username_flow": {
         LOCAL: {
-            PROCESSING: {"get_slot": slot_procs.extract(["person.username"])},
+            PROCESSING: {"get_slot": slot_procs.extract(["person/username"])},
             TRANSITIONS: {
-                ("email_flow", "ask", 1.2): slot_cnd.all_set(["person.username"]),
+                ("email_flow", "ask", 1.2): slot_procs.is_set_all(["person/username"]),
                 ("username_flow", "repeat_question", 0.8): cnd.true(),
             },
         },
@@ -42,9 +41,9 @@ script = {
     },
     "email_flow": {
         LOCAL: {
-            PROCESSING: {"get_slot": slot_procs.extract(["person.email"])},
+            PROCESSING: {"get_slot": slot_procs.extract(["person/email"])},
             TRANSITIONS: {
-                ("friend_flow", "ask", 1.2): slot_cnd.all_set(["person.username", "person.email"]),
+                ("friend_flow", "ask", 1.2): slot_procs.is_set_all(["person/username", "person/email"]),
                 ("email_flow", "repeat_question", 0.8): cnd.true(),
             },
         },
@@ -57,7 +56,7 @@ script = {
         LOCAL: {
             PROCESSING: {"get_slots": slot_procs.extract(["friend"])},
             TRANSITIONS: {
-                ("root", "utter", 1.2): slot_cnd.any_set(["friend.first_name", "friend.last_name"]),
+                ("root", "utter", 1.2): slot_procs.is_set_any(["friend/first_name", "friend/last_name"]),
                 ("friend_flow", "repeat_question", 0.8): cnd.true(),
             },
         },
@@ -68,11 +67,11 @@ script = {
         "start": {RESPONSE: "", TRANSITIONS: {("username_flow", "ask"): cnd.true()}},
         "fallback": {RESPONSE: "Finishing query", TRANSITIONS: {("username_flow", "ask"): cnd.true()}},
         "utter": {
-            RESPONSE: slot_rps.fill_template("Your friend is called {friend.first_name} {friend.last_name}"),
+            RESPONSE: slot_rps.fill_template("Your friend is called {friend/first_name} {friend/last_name}"),
             TRANSITIONS: {("root", "utter_alternative"): cnd.true()},
         },
         "utter_alternative": {
-            RESPONSE: "Your username is {person.username}. Your email is {person.email}.",
+            RESPONSE: "Your username is {person/username}. Your email is {person/email}.",
             PROCESSING: {"fill": slot_procs.fill_template()},
             TRANSITIONS: {("root", "fallback"): cnd.true()},
         },

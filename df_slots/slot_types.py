@@ -33,10 +33,6 @@ class BaseSlot(BaseModel):
         raise NotImplementedError("Base class has no attribute 'value'")
 
     def extract_value(self, ctx: Context, actor: Actor):
-        self.init_value(ctx, actor)
-        return self.value
-
-    def init_value(self, ctx: Context, actor: Actor):
         raise NotImplementedError("Base class has no attribute 'value'")
 
 
@@ -52,7 +48,13 @@ class GroupSlot(BaseSlot):
 
     @property
     def value(self):
-        return {name: child.value for name, child in self.children.items()}
+        values = dict()
+        for name, child in self.children.items():
+            if isinstance(child, GroupSlot):
+                values.update({"/".join([self.name, key]): value for key, value in child.value})
+            else:
+                values.update({"/".join([self.name, name]): child.value})
+        return values
 
     def __getattr__(self, attr: str):
         try:
@@ -75,10 +77,11 @@ class GroupSlot(BaseSlot):
 
         return fill_inner
 
-    def init_value(self, ctx: Context, actor: Actor):
+    def extract_value(self, ctx: Context, actor: Actor):
         for child in self.children.values():
-            if not child.value:
-                child.init_value(ctx, actor)
+            # if not child.value:
+            val = child.extract_value(ctx, actor)
+        return self.value
 
 
 class ValueSlot(BaseSlot):
@@ -108,16 +111,18 @@ class RegexpSlot(ValueSlot):
             return re.compile(reg)
         return reg
 
-    def init_value(self, ctx: Context, actor: Actor):
+    def extract_value(self, ctx: Context, actor: Actor):
         search = re.search(self.regexp, ctx.last_request)
         self.value = search.group() if search else None
+        return self.value
 
 
 class FunctionSlot(ValueSlot):
     func: Callable[[str], str]
 
-    def init_value(self, ctx: Context, actor: Actor):
+    def extract_value(self, ctx: Context, actor: Actor):
         self.value = self.func(ctx.last_request)
+        return self.value
 
 
 BaseSlot.update_forward_refs()

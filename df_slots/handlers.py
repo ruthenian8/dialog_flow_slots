@@ -3,7 +3,7 @@ import logging
 
 from df_engine.core import Context, Actor
 
-from .slot_types import BaseSlot
+from .slot_types import BaseSlot, GroupSlot
 from .root import root
 
 logger = logging.getLogger(__name__)
@@ -20,8 +20,12 @@ def extract(ctx: Context, actor: Actor, slots: Optional[List[str]] = None, root:
         if name not in root:
             results.append(None)
             continue
-        val = root.get(name).extract_value(ctx, actor)
-        storage[name] = val
+        target_slot: BaseSlot = root.get(name)
+        val = target_slot.extract_value(ctx, actor)
+        if isinstance(target_slot, GroupSlot):
+            ctx.framework_states["slots"].update(val)
+        else:
+            ctx.framework_states["slots"][name] = val
         results.append(val)
 
     return results
@@ -37,11 +41,16 @@ def get_values(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) ->
 
 
 def get_filled_template(
-    template: str, ctx: Context, actor: Actor, slot: Optional[str] = None, root: dict = root
+    template: str, ctx: Context, actor: Actor, slots: Optional[List[str]] = None
 ) -> str:
-    if not slot:
-        return template.format(**root)
-    target_slot: BaseSlot = root.get(slot)
-    if not target_slot:
-        logger.info("Failed to fill the template: target slot not in context")
-    return target_slot.fill_template(template)(ctx, actor)
+    storage = ctx.framework_states.get("slots")
+    if not storage:
+        logger.info("Failed to get slot values: storage slot not in context")
+        return template
+    
+    if slots:
+        filler = {key: value for key, value in storage.items() if key in slots}
+    else:
+        filler = slots
+
+    return template.format(**filler)

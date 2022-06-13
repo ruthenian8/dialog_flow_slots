@@ -2,7 +2,6 @@
 from .handlers import *
 from .slot_types import *
 from .root import *
-from . import conditions
 from . import response
 from . import processing
 

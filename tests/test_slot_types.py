@@ -17,11 +17,9 @@ from df_slots import register_slots, register_root_slots
 def test_regexp(input, regexp, expected, _set, testing_context, testing_actor):
     testing_context.add_request(input)
     slot = RegexpSlot(name="test", regexp=regexp)
-    slot.init_value(testing_context, testing_actor)
-    assert slot.value == expected
-    assert slot.is_set() == _set
     result = slot.extract_value(testing_context, testing_actor)
     assert result == expected
+    assert slot.is_set() == _set
 
 
 @pytest.mark.parametrize(
@@ -33,7 +31,7 @@ def test_regexp(input, regexp, expected, _set, testing_context, testing_actor):
                 RegexpSlot(name="name", regexp=r"(?<=am ).+?(?=\.)"),
                 RegexpSlot(name="email", regexp=r"[a-zA-Z\.]+@[a-zA-Z\.]+"),
             ],
-            {"name": "Groot", "email": "groot@gmail.com"},
+            {"test/name": "Groot", "test/email": "groot@gmail.com"},
             True,
         ),
         (
@@ -42,7 +40,7 @@ def test_regexp(input, regexp, expected, _set, testing_context, testing_actor):
                 RegexpSlot(name="name", regexp=r"(?<=am ).+?(?=\.)"),
                 RegexpSlot(name="email", regexp=r"[a-zA-Z\.]+@[a-zA-Z\.]+"),
             ],
-            {"name": "Groot", "email": None},
+            {"test/name": "Groot", "test/email": None},
             False,
         ),
     ],
@@ -50,12 +48,11 @@ def test_regexp(input, regexp, expected, _set, testing_context, testing_actor):
 def test_group(input, children, expected, is_set, testing_context, testing_actor):
     testing_context.add_request(input)
     slot = GroupSlot(name="test", children=children)
-    slot.init_value(testing_context, testing_actor)
-    assert slot.value == expected
-    assert slot.is_set() == is_set
+    assert len(slot.children) == len(children)
     result = slot.extract_value(testing_context, testing_actor)
+    assert slot.is_set() == is_set
     assert result == expected
-    template = "{name} {email}"
+    template = "{test/name} {test/email}"
     assert (slot.fill_template(template)(testing_context, testing_actor) != template) == is_set
 
 
@@ -75,11 +72,9 @@ def test_group(input, children, expected, is_set, testing_context, testing_actor
 def test_function(input, func, expected, _set, testing_context, testing_actor):
     testing_context.add_request(input)
     slot = FunctionSlot(name="test", func=func)
-    slot.init_value(testing_context, testing_actor)
-    assert slot.value == expected
-    assert slot.is_set() == _set
     result = slot.extract_value(testing_context, testing_actor)
     assert result == expected
+    assert slot.is_set() == _set
 
 
 def test_children():
@@ -100,7 +95,7 @@ def test_children():
                 RegexpSlot(name="name", regexp=r"(?<=am ).+?(?=\.)"),
                 RegexpSlot(name="email", regexp=r"[a-zA-Z\.]+@[a-zA-Z\.]+"),
             ],
-            ["root.name", "root.email", "root"],
+            ["root/name", "root/email", "root"],
         ),
         (
             "root",
@@ -114,7 +109,7 @@ def test_children():
                     ],
                 )
             ],
-            ["root.person.name", "root.person.email", "root.person", "root"],
+            ["root/person/name", "root/person/email", "root/person", "root"],
         ),
         (
             "root",
