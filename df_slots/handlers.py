@@ -40,14 +40,12 @@ def get_values(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) ->
     return [storage.get(name).value for name in target_names if name in storage]
 
 
-def get_filled_template(
-    template: str, ctx: Context, actor: Actor, slots: Optional[List[str]] = None
-) -> str:
+def get_filled_template(template: str, ctx: Context, actor: Actor, slots: Optional[List[str]] = None) -> str:
     storage = ctx.framework_states.get("slots")
     if not storage:
         logger.info("Failed to get slot values: storage slot not in context")
         return template
-    
+
     if slots:
         filler = {key: value for key, value in storage.items() if key in slots}
     else:
