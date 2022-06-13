@@ -34,13 +34,11 @@ format: venv
 .PHONY: format
 
 lint: venv
-	$(VENV_PATH)/bin/python -m flake8 --config=setup.cfg dialog_flow_slots/
 	@set -e && $(VENV_PATH)/bin/python -m black --exclude="setup\.py" --line-length=120 --check . || ( \
 		echo "================================"; \
 		echo "Bad formatting? Run: make format"; \
 		echo "================================"; \
 		false)
-	$(VENV_PATH)/bin/python -m mypy --config=setup.cfg dialog_flow_slots/
 
 .PHONY: lint
 
