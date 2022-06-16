@@ -5,21 +5,23 @@ from df_engine.core.keywords import RESPONSE, TRANSITIONS, PROCESSING, GLOBAL, L
 from df_engine.core import Actor
 
 import df_slots
+from df_slots import slot_types
 from df_slots import processing as slot_procs
 from df_slots import response as slot_rps
+from df_slots import conditions as slot_cnd
 
 from examples import example_utils
 
 logger = logging.getLogger(__name__)
 
-username_slot = df_slots.RegexpSlot(name="username", regexp=r"(?<=username is )[a-zA-Z]+")
-email_slot = df_slots.RegexpSlot(name="email", regexp=r"(?<=email is )[a-z@\.A-Z]+")
-person_slot = df_slots.GroupSlot(name="person", children=[username_slot, email_slot])
-friend_slot = df_slots.GroupSlot(
+username_slot = slot_types.RegexpSlot(name="username", regexp=r"(?<=username is )[a-zA-Z]+")
+email_slot = slot_types.RegexpSlot(name="email", regexp=r"(?<=email is )[a-z@\.A-Z]+")
+person_slot = slot_types.GroupSlot(name="person", children=[username_slot, email_slot])
+friend_slot = slot_types.GroupSlot(
     name="friend",
     children=[
-        df_slots.RegexpSlot(name="first_name", regexp=r"^[A-Z][a-z]+?(?= )"),
-        df_slots.RegexpSlot(name="last_name", regexp=r"(?<= )[A-Z][a-z]+"),
+        slot_types.RegexpSlot(name="first_name", regexp=r"^[A-Z][a-z]+?(?= )"),
+        slot_types.RegexpSlot(name="last_name", regexp=r"(?<= )[A-Z][a-z]+"),
     ],
 )
 df_slots.register_slots([person_slot, friend_slot])
@@ -30,7 +32,7 @@ script = {
         LOCAL: {
             PROCESSING: {"get_slot": slot_procs.extract(["person/username"])},
             TRANSITIONS: {
-                ("email_flow", "ask", 1.2): slot_procs.is_set_all(["person/username"]),
+                ("email_flow", "ask", 1.2): slot_cnd.is_set_all(["person/username"]),
                 ("username_flow", "repeat_question", 0.8): cnd.true(),
             },
         },
@@ -43,7 +45,7 @@ script = {
         LOCAL: {
             PROCESSING: {"get_slot": slot_procs.extract(["person/email"])},
             TRANSITIONS: {
-                ("friend_flow", "ask", 1.2): slot_procs.is_set_all(["person/username", "person/email"]),
+                ("friend_flow", "ask", 1.2): slot_cnd.is_set_all(["person/username", "person/email"]),
                 ("email_flow", "repeat_question", 0.8): cnd.true(),
             },
         },
@@ -56,7 +58,7 @@ script = {
         LOCAL: {
             PROCESSING: {"get_slots": slot_procs.extract(["friend"])},
             TRANSITIONS: {
-                ("root", "utter", 1.2): slot_procs.is_set_any(["friend/first_name", "friend/last_name"]),
+                ("root", "utter", 1.2): slot_cnd.is_set_any(["friend/first_name", "friend/last_name"]),
                 ("friend_flow", "repeat_question", 0.8): cnd.true(),
             },
         },

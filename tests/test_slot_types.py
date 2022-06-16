@@ -2,8 +2,11 @@ import sys
 
 import pytest
 
-from df_slots import RegexpSlot, GroupSlot, FunctionSlot, flatten_slot_tree
-from df_slots import register_slots, register_root_slots
+from df_slots.slot_types import RegexpSlot, GroupSlot, FunctionSlot
+from df_slots import register_slots, register_root_slots, flatten_slot_tree
+
+
+# pytest.skip(allow_module_level=True)
 
 
 @pytest.mark.parametrize(
@@ -31,7 +34,7 @@ def test_regexp(input, regexp, expected, _set, testing_context, testing_actor):
                 RegexpSlot(name="name", regexp=r"(?<=am ).+?(?=\.)"),
                 RegexpSlot(name="email", regexp=r"[a-zA-Z\.]+@[a-zA-Z\.]+"),
             ],
-            {"test/name": "Groot", "test/email": "groot@gmail.com"},
+            {"name": "Groot", "email": "groot@gmail.com"},
             True,
         ),
         (
@@ -40,7 +43,7 @@ def test_regexp(input, regexp, expected, _set, testing_context, testing_actor):
                 RegexpSlot(name="name", regexp=r"(?<=am ).+?(?=\.)"),
                 RegexpSlot(name="email", regexp=r"[a-zA-Z\.]+@[a-zA-Z\.]+"),
             ],
-            {"test/name": "Groot", "test/email": None},
+            {"name": "Groot", "email": None},
             False,
         ),
     ],
@@ -52,8 +55,6 @@ def test_group(input, children, expected, is_set, testing_context, testing_actor
     result = slot.extract_value(testing_context, testing_actor)
     assert slot.is_set() == is_set
     assert result == expected
-    template = "{test/name} {test/email}"
-    assert (slot.fill_template(template)(testing_context, testing_actor) != template) == is_set
 
 
 @pytest.mark.parametrize(
@@ -136,7 +137,7 @@ def test_children():
 )
 def test_flatten(root_name, length, children, names):
     slot = GroupSlot(name=root_name, children=children)
-    flatten_result = flatten_slot_tree(slot)
+    flatten_result, _ = flatten_slot_tree(slot)
     assert len(flatten_result) == length
     assert all(map(lambda x: x.startswith(root_name), flatten_result.keys()))
     if names:

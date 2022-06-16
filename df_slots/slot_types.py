@@ -1,4 +1,5 @@
 import re
+import logging
 from copy import copy
 from collections.abc import Iterable
 from typing import Callable, Optional, Any, Dict
@@ -8,11 +9,19 @@ from df_engine.core import Context, Actor
 from pydantic import Field, BaseModel, validator
 from pydantic.typing import ForwardRef
 
+logger = logging.getLogger(__name__)
+
 BaseSlot = ForwardRef("BaseSlot")
 
 
 class BaseSlot(BaseModel):
     name: str
+
+    @validator("name", pre=True)
+    def validate_name(cls, name: str):
+        if "/" in name:
+            raise ValueError("separator `/` cannot be used in slot names")
+        return name
 
     class Config:
         arbitrary_types_allowed = True
@@ -29,7 +38,7 @@ class BaseSlot(BaseModel):
     def is_set(self):
         raise NotImplementedError("Base class has no attribute 'value'")
 
-    def fill_template(self):
+    def fill_template(self, template: str) -> Callable[[Context, Actor], str]:
         raise NotImplementedError("Base class has no attribute 'value'")
 
     def extract_value(self, ctx: Context, actor: Actor):
@@ -51,9 +60,9 @@ class GroupSlot(BaseSlot):
         values = dict()
         for name, child in self.children.items():
             if isinstance(child, GroupSlot):
-                values.update({"/".join([self.name, key]): value for key, value in child.value})
+                values.update({key: value for key, value in child.value})
             else:
-                values.update({"/".join([self.name, name]): child.value})
+                values.update({child.name: child.value})
         return values
 
     def __getattr__(self, attr: str):
@@ -70,16 +79,17 @@ class GroupSlot(BaseSlot):
         return all(child.is_set() for child in self.children.values())
 
     def fill_template(self, template: str) -> Callable:
-        def fill_inner(ctx: Context, actor: Actor):
-            if not self.is_set():
-                return template
-            return template.format(**self.value)
+        def fill_inner(ctx: Context, actor: Actor) -> str:
+            new_template = template
+            for _, child in self.children.items():
+                new_template = child.fill_template(new_template)(ctx, actor)
+            
+            return new_template
 
         return fill_inner
 
     def extract_value(self, ctx: Context, actor: Actor):
         for child in self.children.values():
-            # if not child.value:
             val = child.extract_value(ctx, actor)
         return self.value
 
@@ -93,11 +103,16 @@ class ValueSlot(BaseSlot):
     def is_set(self):
         return self.value is not None
 
-    def fill_template(self, template: str):
-        def fill_inner(ctx: Context, actor: Actor):
-            if not self.is_set():
+    def fill_template(self, template: str) -> Callable:
+        def fill_inner(ctx: Context, actor: Actor) -> str:
+            storage = ctx.framework_states.get("slots")
+            if not storage or self.name not in storage:
+                logger.warning("storage or storage entry missing")
                 return template
-            return template.format(**{self.name: self.value})
+            
+            value = storage.get(self.name)
+
+            return template.replace("{" + self.name + "}", value)
 
         return fill_inner
 

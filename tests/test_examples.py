@@ -8,6 +8,8 @@ sys.path.insert(0, "../")
 
 from examples.example_utils import run_test
 
+# pytest.skip(allow_module_level=True)
+
 
 @pytest.mark.parametrize("module_name", ["examples.slot_example"])
 def test_examples(module_name):

@@ -1,12 +1,9 @@
-from typing import Optional, List
-import logging
+from typing import Dict, Optional, List
 
 from df_engine.core import Context, Actor
 
 from .slot_types import BaseSlot, GroupSlot
 from .root import root
-
-logger = logging.getLogger(__name__)
 
 
 def extract(ctx: Context, actor: Actor, slots: Optional[List[str]] = None, root: dict = root) -> list:
@@ -41,14 +38,14 @@ def get_values(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) ->
 
 
 def get_filled_template(template: str, ctx: Context, actor: Actor, slots: Optional[List[str]] = None) -> str:
-    storage = ctx.framework_states.get("slots")
-    if not storage:
-        logger.info("Failed to get slot values: storage slot not in context")
-        return template
 
+    filler_nodes: Dict[str, BaseSlot]
     if slots:
-        filler = {key: value for key, value in storage.items() if key in slots}
+        filler_nodes = {key: value for key, value in root.items() if key in root}
     else:
-        filler = slots
+        filler_nodes = {key: value for key, value in root.items() if "/" not in key}
 
-    return template.format(**filler)
+    for _, slot in filler_nodes.items():
+        template = slot.fill_template(template)(ctx, actor)
+
+    return template

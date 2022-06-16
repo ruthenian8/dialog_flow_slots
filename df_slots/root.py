@@ -1,5 +1,5 @@
 import functools
-from typing import List, Union, Dict
+from typing import List, Union, Dict, Tuple
 
 from df_engine.core import Context, Actor
 from df_engine.core.actor import ActorStage
@@ -24,29 +24,36 @@ def register_storage(actor: Actor, storage: Dict[str, str] = None) -> None:
     ]
 
 
-def flatten_slot_tree(node: BaseSlot) -> Dict[str, BaseSlot]:
-    nodes = {node.name: node}
+def flatten_slot_tree(node: BaseSlot) -> Tuple[Dict[str, BaseSlot], Dict[str, BaseSlot]]:
+    add_nodes = {node.name: node}
+    remove_nodes = {}
     if node.has_children():
         for name, child in node.children.items():
-            old_child_name = child.name
+            remove_nodes.update({child.name: child})
             child.name = "/".join([node.name, name])
-            nodes.update(flatten_slot_tree(child))
-            child.name = old_child_name
-    return nodes
+            child_add_nodes, child_remove_nodes = flatten_slot_tree(child)
+            add_nodes.update(child_add_nodes)
+            remove_nodes.update(child_remove_nodes)
+    return add_nodes, remove_nodes
 
 
 def register_slots(slots: Union[List[BaseSlot], BaseSlot], root: dict = root) -> dict:
     if isinstance(slots, BaseSlot):
         slots = [slots]
     for slot in slots:
-        root.update(flatten_slot_tree(slot))
+        add_nodes, _ = flatten_slot_tree(slot)
+        root.update(add_nodes)
     return root
 
 
 def register_root_slots(slots: List[BaseSlot], root: dict = root):
-    names = [slot.name for slot in slots]
-    root = {name: slot for name, slot in root.items() if any(map(lambda x: name.startswith(x), names))}
-    return root
+    new_root = dict()
+    for slot in slots:
+        if not slot.has_children():
+            new_root[slot.name] = root[slot.name]
+        else:
+            new_root.update({name: _slot for name, _slot in root.items() if name.startswith(slot.name)})
+    return new_root
 
 
 def auto_register(root: dict = root):
@@ -58,8 +65,10 @@ def auto_register(root: dict = root):
             if registry_wrapper.freeze:
                 return slot_instance
 
-            children_mapping = flatten_slot_tree(slot_instance)
-            root.update(children_mapping)
+            add_nodes, remove_nodes = flatten_slot_tree(slot_instance)
+            for key in remove_nodes.keys():
+                root.pop(key)
+            root.update(add_nodes)
             return slot_instance
 
         registry_wrapper.freeze = False

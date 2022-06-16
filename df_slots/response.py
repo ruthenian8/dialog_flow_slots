@@ -1,22 +1,24 @@
 from typing import Union
-import logging
 
 from df_generics import Response
 from df_engine.core import Context, Actor
 
-logger = logging.getLogger(__name__)
+from .root import root
 
 
 def fill_template(template: Union[str, Response]):
     def fill_inner(ctx: Context, actor: Actor):
-        storage = ctx.framework_states.get("slots")
-        if not storage:
-            logger.info("Failed to get slot values: storage slot not in context")
-            return template
+
+        filler_nodes = {key: value for key, value in root.items() if "/" not in key}
+
+        new_template = template if isinstance(template, str) else template.text
+        for _, slot in filler_nodes.items():
+            new_template = slot.fill_template(new_template)(ctx, actor)
 
         if isinstance(template, Response):
-            template.text = template.text.format(**storage)
+            template.text = new_template
             return template
-        return template.format(**storage)
+
+        return new_template
 
     return fill_inner

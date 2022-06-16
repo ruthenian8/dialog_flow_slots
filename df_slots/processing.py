@@ -35,36 +35,26 @@ def extract(slots: Union[None, List[str]], root: dict = root) -> Callable:
 
 
 def fill_template(root: dict = root):
-    def fill_inner(ctx: Context, actor: Actor):
+    def fill_inner(ctx: Context, actor: Actor) -> Union[Response, str]:
 
+        # get current node response
         response = ctx.framework_states["actor"]["processed_node"].response
         if callable(response):
             response = response(ctx, actor)
+
+        # process response
+        filler_nodes = {key: value for key, value in root.items() if "/" not in key}
+        new_template = response if isinstance(response, str) else response.text
+        for _, slot in filler_nodes.items():
+            new_template = slot.fill_template(new_template)(ctx, actor)
+
+        # assign to node
         if isinstance(response, str):
-            ctx.framework_states["actor"]["processed_node"].response = response.format(**root)
+            ctx.framework_states["actor"]["processed_node"].response = new_template
         elif isinstance(response, Response):
-            response.text = response.text.format(**root)
+            response.text = new_template
             ctx.framework_states["actor"]["processed_node"].response = response
 
         return ctx
 
     return fill_inner
-
-
-def is_set(slots: List[str], use_all: bool = True, use_any: bool = False, root: dict = root) -> Callable:
-    if use_all == use_any:
-        raise ValueError("Parameters `use_all` and `use_any` are mutually exclusive.")
-
-    def is_set_inner(ctx: Context, actor: Actor) -> bool:
-        slots_set = [root.get(slot).is_set() if slot in root else False for slot in slots]
-        if use_all:
-            return all(slots_set)
-        if use_any:
-            return any(slots_set)
-
-    return is_set_inner
-
-
-is_set_all = partial(is_set, use_all=True, use_any=False)
-
-is_set_any = partial(is_set, use_any=True, use_all=False)
