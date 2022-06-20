@@ -6,16 +6,9 @@ from df_engine.core import Context
 
 sys.path.insert(0, "../")
 
-from examples.slot_example import actor
+from examples.basic_example import actor
 
 from df_slots.root import root as slot_root, freeze_root
-
-
-@pytest.fixture
-def testing_context():
-    ctx = Context()
-    ctx.add_request("I am Groot")
-    yield ctx
 
 
 @pytest.fixture
@@ -23,11 +16,13 @@ def testing_actor():
     yield actor
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
+def testing_context(testing_actor):
+    ctx = testing_actor(Context())
+    ctx.add_request("I am Groot")
+    yield ctx
+
+
+@pytest.fixture(scope="session")
 def root():
     yield slot_root
-
-
-@pytest.fixture(scope='function')
-def freeze():
-    yield freeze_root

@@ -5,8 +5,7 @@ from functools import partial
 from df_engine.core import Context, Actor
 from df_generics import Response
 
-from df_slots.slot_types import BaseSlot, GroupSlot
-
+from .slot_types import BaseSlot, GroupSlot
 from .root import root
 
 logger = logging.getLogger(__name__)

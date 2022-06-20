@@ -1,5 +1,7 @@
 import functools
-from typing import List, Union, Dict, Tuple
+from typing import Callable, List, Union, Dict, Tuple
+
+from pydantic.main import ModelMetaclass
 
 from df_engine.core import Context, Actor
 from df_engine.core.actor import ActorStage
@@ -54,25 +56,3 @@ def register_root_slots(slots: List[BaseSlot], root: dict = root):
         else:
             new_root.update({name: _slot for name, _slot in root.items() if name.startswith(slot.name)})
     return new_root
-
-
-def auto_register(root: dict = root):
-    def auto_register_decorator(cls):
-        @functools.wraps(cls)
-        def registry_wrapper(*args, **kwargs):
-            slot_instance = cls(*args, **kwargs)
-            registry_wrapper.freeze = freeze_root
-            if registry_wrapper.freeze:
-                return slot_instance
-
-            add_nodes, remove_nodes = flatten_slot_tree(slot_instance)
-            for key in remove_nodes.keys():
-                root.pop(key)
-            root.update(add_nodes)
-            return slot_instance
-
-        registry_wrapper.freeze = False
-
-        return registry_wrapper
-
-    return auto_register_decorator

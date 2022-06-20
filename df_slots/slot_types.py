@@ -60,7 +60,7 @@ class GroupSlot(BaseSlot):
         values = dict()
         for name, child in self.children.items():
             if isinstance(child, GroupSlot):
-                values.update({key: value for key, value in child.value})
+                values.update({key: value for key, value in child.value.items()})
             else:
                 values.update({child.name: child.value})
         return values
@@ -83,7 +83,7 @@ class GroupSlot(BaseSlot):
             new_template = template
             for _, child in self.children.items():
                 new_template = child.fill_template(new_template)(ctx, actor)
-            
+
             return new_template
 
         return fill_inner
@@ -106,12 +106,13 @@ class ValueSlot(BaseSlot):
     def fill_template(self, template: str) -> Callable:
         def fill_inner(ctx: Context, actor: Actor) -> str:
             storage = ctx.framework_states.get("slots")
-            if not storage or self.name not in storage:
+            if storage is None or self.name not in storage:
                 logger.warning("storage or storage entry missing")
                 return template
-            
-            value = storage.get(self.name)
 
+            value = storage.get(self.name)
+            if value is None:
+                return template
             return template.replace("{" + self.name + "}", value)
 
         return fill_inner

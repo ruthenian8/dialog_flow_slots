@@ -2,6 +2,13 @@ import logging
 from typing import Union, Optional
 
 from df_engine.core import Context, Actor
+from df_generics import Response
+
+
+def process_response(response):
+    if isinstance(response, Response):
+        return response.text
+    return response
 
 
 def turn_handler(
@@ -14,7 +21,7 @@ def turn_handler(
     # pass the context into actor and it returns updated context with actor response
     ctx = actor(ctx)
     # get last actor response from the context
-    out_response = ctx.last_response
+    out_response = process_response(ctx.last_response)
     # the next condition branching needs for testing
     if true_out_response is not None and true_out_response != out_response:
         msg = f"in_request={in_request} -> true_out_response != out_response: {true_out_response} != {out_response}"
