@@ -25,6 +25,9 @@ class BaseSlot(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+    
+    def __init__(self, name: str, **data):
+        super().__init__(name=name, **data)
 
     def __deepcopy__(self, *args, **kwargs):
         return copy(self)

@@ -6,12 +6,12 @@ from df_engine.core import Context, Actor
 from .root import root
 
 
-def is_set(slots: List[str], use_all: bool = True, use_any: bool = False, root: dict = root) -> Callable:
+def is_set(slots: List[str], use_all: bool = True, use_any: bool = False) -> Callable:
     if use_all == use_any:
         raise ValueError("Parameters `use_all` and `use_any` are mutually exclusive.")
 
     def is_set_inner(ctx: Context, actor: Actor) -> bool:
-        slots_set = [root.get(slot).is_set() if slot in root else False for slot in slots]
+        slots_set = [root.children.get(slot).is_set() if slot in root.children else False for slot in slots]
         if use_all:
             return all(slots_set)
         if use_any:

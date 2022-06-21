@@ -1,58 +1,50 @@
-import functools
-from typing import Callable, List, Union, Dict, Tuple
+from typing import List, Union, Dict, Tuple
 
-from pydantic.main import ModelMetaclass
-
-from df_engine.core import Context, Actor
-from df_engine.core.actor import ActorStage
-from .slot_types import BaseSlot
-
-root = dict()
-freeze_root = False
+from .slot_types import BaseSlot, GroupSlot
+from .slot_utils import flatten_slot_tree
 
 
-def register_storage(actor: Actor, storage: Dict[str, str] = None) -> None:
-    if not storage:
-        storage = dict()
+def singleton(cls: type):
+    def singleton_inner(*args, **kwargs):
+        if singleton_inner.instance is None:
+            singleton_inner.instance = cls(*args, **kwargs)
+        return singleton_inner.instance
+    
+    singleton_inner.instance = None
+    return singleton_inner
 
-    def create_slot_storage_inner(ctx: Context, actor: Actor, *args, **kwargs) -> None:
-        if "slots" in ctx.framework_states:
+
+@singleton
+class RootSlot(GroupSlot):
+    freeze: bool = False
+
+    def register_slots(self, slots: Union[List[BaseSlot], BaseSlot]) -> dict:
+        if isinstance(slots, BaseSlot):
+            slots = [slots]
+        for slot in slots:
+            add_nodes, _ = flatten_slot_tree(slot)
+            self.children.update(add_nodes)
+
+    def keep_slots(self, slots: List[BaseSlot]):
+        new_root_children = dict()
+        for slot in slots:
+            if not slot.has_children():
+                new_root_children[slot.name] = self.children[slot.name]
+            else:
+                new_root_children.update({name: _slot for name, _slot in self.children.items() if name.startswith(slot.name)})
+        self.children = new_root_children
+
+
+root = RootSlot(name="root_slot")
+
+
+class AutoRegisterMixin:
+    def __init__(self, *, name: str, **data) -> None:
+        super().__init__(name=name, **data)
+        if root.freeze:
             return
-        ctx.framework_states["slots"] = storage
-        return
-
-    actor.handlers[ActorStage.CONTEXT_INIT] = actor.handlers.get(ActorStage.CONTEXT_INIT, []) + [
-        create_slot_storage_inner
-    ]
-
-
-def flatten_slot_tree(node: BaseSlot) -> Tuple[Dict[str, BaseSlot], Dict[str, BaseSlot]]:
-    add_nodes = {node.name: node}
-    remove_nodes = {}
-    if node.has_children():
-        for name, child in node.children.items():
-            remove_nodes.update({child.name: child})
-            child.name = "/".join([node.name, name])
-            child_add_nodes, child_remove_nodes = flatten_slot_tree(child)
-            add_nodes.update(child_add_nodes)
-            remove_nodes.update(child_remove_nodes)
-    return add_nodes, remove_nodes
-
-
-def register_slots(slots: Union[List[BaseSlot], BaseSlot], root: dict = root) -> dict:
-    if isinstance(slots, BaseSlot):
-        slots = [slots]
-    for slot in slots:
-        add_nodes, _ = flatten_slot_tree(slot)
-        root.update(add_nodes)
-    return root
-
-
-def register_root_slots(slots: List[BaseSlot], root: dict = root):
-    new_root = dict()
-    for slot in slots:
-        if not slot.has_children():
-            new_root[slot.name] = root[slot.name]
-        else:
-            new_root.update({name: _slot for name, _slot in root.items() if name.startswith(slot.name)})
-    return new_root
+        add_nodes, remove_nodes = flatten_slot_tree(self)
+        for key in remove_nodes.keys():
+            if key in root.children:
+                root.children.pop(key)
+        root.children.update(add_nodes)

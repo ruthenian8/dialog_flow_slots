@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from .handlers import *
 from .slot_types import GroupSlot, ValueSlot, RegexpSlot, FunctionSlot
-from .slot_utils import AutoRegisterMixin
-from .root import *
+from .slot_utils import register_storage
+from .root import root, RootSlot, AutoRegisterMixin
 from . import conditions
 from . import response
 from . import processing

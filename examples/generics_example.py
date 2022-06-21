@@ -23,7 +23,7 @@ from examples import example_utils
 logger = logging.getLogger(__name__)
 
 
-df_slots.root.clear()
+df_slots.root.children.clear()
 username_slot = df_slots.RegexpSlot(name="username", regexp=r"(?<=username is )[a-zA-Z]+")
 email_slot = df_slots.RegexpSlot(name="email", regexp=r"(?<=email is )[a-z@\.A-Z]+")
 person_slot = df_slots.GroupSlot(name="person", children=[username_slot, email_slot])

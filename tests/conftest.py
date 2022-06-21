@@ -8,7 +8,7 @@ sys.path.insert(0, "../")
 
 from examples.basic_example import actor
 
-from df_slots.root import root as slot_root, freeze_root
+from df_slots.root import root as slot_root
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ from .root import root
 def fill_template(template: Union[str, Response]):
     def fill_inner(ctx: Context, actor: Actor):
 
-        filler_nodes = {key: value for key, value in root.items() if "/" not in key}
+        filler_nodes = {key: value for key, value in root.children.items() if "/" not in key}
 
         new_template = template if isinstance(template, str) else template.text
         for _, slot in filler_nodes.items():

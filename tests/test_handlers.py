@@ -3,7 +3,7 @@ import sys
 import pytest
 
 from df_slots.handlers import get_values, get_filled_template, extract
-from df_slots import FunctionSlot, register_root_slots
+from df_slots import FunctionSlot
 
 
 @pytest.mark.parametrize(
@@ -19,7 +19,7 @@ def test_get_template(input, noparams, expected, testing_context, testing_actor,
     testing_context.add_request(input)
     slot_name = "creature_name"
     template = "{" + slot_name + "}"
-    root.clear()
+    root.children.clear()
     slot = FunctionSlot(name=slot_name, func=lambda x: x.partition("name is ")[-1] or None)
     if noparams:
         result_1 = extract(testing_context, testing_actor)

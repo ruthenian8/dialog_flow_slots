@@ -11,18 +11,19 @@ from .root import root
 logger = logging.getLogger(__name__)
 
 
-def extract(slots: Union[None, List[str]], root: dict = root) -> Callable:
+def extract(slots: Union[None, List[str]]) -> Callable:
     def extract_inner(ctx: Context, actor: Actor):
         storage = ctx.framework_states.get("slots")
         if storage is None:
             logger.warning("Failed to extract slots: storage not in context")
             return ctx
 
-        target_names = slots or list(root.keys())
+        target_names = slots or list(root.children.keys())
         for key in target_names:
-            if not key in root:
+            if not key in root.children:
+                logger.warning(f"Missing name: {key}")
                 continue
-            target_slot: BaseSlot = root.get(key)
+            target_slot: BaseSlot = root.children.get(key)
             val = target_slot.extract_value(ctx, actor)
             if isinstance(target_slot, GroupSlot):
                 ctx.framework_states["slots"].update(val)
@@ -33,26 +34,26 @@ def extract(slots: Union[None, List[str]], root: dict = root) -> Callable:
     return extract_inner
 
 
-def fill_template(root: dict = root):
+def fill_template():
     def fill_inner(ctx: Context, actor: Actor) -> Union[Response, str]:
 
         # get current node response
-        response = ctx.framework_states["actor"]["processed_node"].response
+        response = ctx.current_node.response
         if callable(response):
             response = response(ctx, actor)
 
         # process response
-        filler_nodes = {key: value for key, value in root.items() if "/" not in key}
+        filler_nodes = {key: value for key, value in root.children.items() if "/" not in key}
         new_template = response if isinstance(response, str) else response.text
         for _, slot in filler_nodes.items():
             new_template = slot.fill_template(new_template)(ctx, actor)
 
         # assign to node
         if isinstance(response, str):
-            ctx.framework_states["actor"]["processed_node"].response = new_template
+            ctx.current_node.response = new_template
         elif isinstance(response, Response):
             response.text = new_template
-            ctx.framework_states["actor"]["processed_node"].response = response
+            ctx.current_node.response = response
 
         return ctx
 

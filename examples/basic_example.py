@@ -12,7 +12,6 @@ from df_engine.core.keywords import (
 from df_engine.core import Actor
 
 import df_slots
-from df_slots import slot_types
 from df_slots import processing as slot_procs
 from df_slots import response as slot_rps
 from df_slots import conditions as slot_cnd
@@ -21,8 +20,7 @@ from examples import example_utils
 
 logger = logging.getLogger(__name__)
 
-
-df_slots.root.clear()
+df_slots.root.children.clear()
 # Group 1: person/username, person/email
 username_slot = df_slots.RegexpSlot(name="username", regexp=r"(?<=username is )[a-zA-Z]+")
 email_slot = df_slots.RegexpSlot(name="email", regexp=r"(?<=email is )[a-z@\.A-Z]+")
@@ -35,10 +33,12 @@ friend_slot = df_slots.GroupSlot(
         df_slots.RegexpSlot(name="last_name", regexp=r"(?<= )[A-Z][a-z]+"),
     ],
 )
+
 # ALTERNATE SYNTAX: you can register slots manually.
+# from df_slots import slot_types
 # username_slot = slot_types.RegexpSlot(name="username", regexp=r"(?<=username is )[a-zA-Z]+")
 # person_slot = slot_types.GroupSlot(name="person", children=[username_slot])
-# df_slots.register_slots([person_slot])
+# df_slots.root.register_slots([person_slot])
 
 
 script = {
