@@ -1,6 +1,5 @@
 import logging
 from typing import Union, List, Callable
-from functools import partial
 
 from df_engine.core import Context, Actor
 from df_generics import Response
@@ -12,6 +11,15 @@ logger = logging.getLogger(__name__)
 
 
 def extract(slots: Union[None, List[str]], root: dict = root) -> Callable:
+    """
+    Extract slots from a specified list. 
+
+    Arguments
+    ---------
+    slots: Optional[List[str]]
+        List of slot names to extract. 
+        Names of slots inside groups should be prefixed with group names, separated by '/': profile/username.
+    """
     def extract_inner(ctx: Context, actor: Actor):
         storage = ctx.framework_states.get("slots")
         if storage is None:
@@ -34,13 +42,18 @@ def extract(slots: Union[None, List[str]], root: dict = root) -> Callable:
 
 
 def fill_template(root: dict = root):
+    """
+    Fill the response template in the current node.
+    Response should be an instance of :py:class:`~str` or of the :py:class:`~Response` class from df_generics add-on.
+    Names of slots to be used should be placed in curly braces: 'Username is {profile/username}'.
+    """
     def fill_inner(ctx: Context, actor: Actor) -> Union[Response, str]:
 
         # get current node response
-        response = ctx.framework_states["actor"]["processed_node"].response
+        response = ctx.current_node.response
         if callable(response):
             response = response(ctx, actor)
-
+    
         # process response
         filler_nodes = {key: value for key, value in root.items() if "/" not in key}
         new_template = response if isinstance(response, str) else response.text
@@ -49,10 +62,10 @@ def fill_template(root: dict = root):
 
         # assign to node
         if isinstance(response, str):
-            ctx.framework_states["actor"]["processed_node"].response = new_template
+            ctx.current_node.response = new_template
         elif isinstance(response, Response):
             response.text = new_template
-            ctx.framework_states["actor"]["processed_node"].response = response
+            ctx.current_node.response = response
 
         return ctx
 

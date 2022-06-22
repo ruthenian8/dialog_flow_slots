@@ -105,6 +105,9 @@ class ValueSlot(BaseSlot):
 
     def fill_template(self, template: str) -> Callable:
         def fill_inner(ctx: Context, actor: Actor) -> str:
+            if not self.name in template:
+                return template
+            
             storage = ctx.framework_states.get("slots")
             if storage is None or self.name not in storage:
                 logger.warning("storage or storage entry missing")
