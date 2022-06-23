@@ -1,5 +1,5 @@
 """
-Slot types
+Types
 ---------------------------
 This module encapsulates different types of slots.
 Generally, these types should be imported from __init__.py for the sake of automatic registry.

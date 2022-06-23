@@ -32,6 +32,7 @@ pet = df_slots.GroupSlot(
         )
     ],
 )
+df_slots.root_slot.register_slots(pet)
 
 # You can use df_slots handlers to define custom functions.
 # These include conditions, responses, and processing routines.

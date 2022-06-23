@@ -1,5 +1,5 @@
 """
-Slot utils
+Utils
 ---------------------------
 This module is for general-purpose functions for df_slots.
 """
@@ -8,7 +8,7 @@ from typing import Dict, Tuple
 from df_engine.core import Context, Actor
 from df_engine.core.actor import ActorStage
 
-from .slot_types import BaseSlot
+from .types import BaseSlot
 
 
 def flatten_slot_tree(node: BaseSlot) -> Tuple[Dict[str, BaseSlot], Dict[str, BaseSlot]]:

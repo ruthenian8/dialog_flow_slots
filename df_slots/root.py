@@ -6,8 +6,8 @@ This instance is a singleton, so it will be shared each time you use the add-on.
 """
 from typing import List, Union
 
-from .slot_types import BaseSlot, GroupSlot
-from .slot_utils import flatten_slot_tree
+from .types import BaseSlot, GroupSlot
+from .utils import flatten_slot_tree
 
 
 def singleton(cls: type):
@@ -22,8 +22,6 @@ def singleton(cls: type):
 
 @singleton
 class RootSlot(GroupSlot):
-    freeze: bool = False
-
     def register_slots(self, slots: Union[List[BaseSlot], BaseSlot]) -> dict:
         if isinstance(slots, BaseSlot):
             slots = [slots]
@@ -31,28 +29,5 @@ class RootSlot(GroupSlot):
             add_nodes, _ = flatten_slot_tree(slot)
             self.children.update(add_nodes)
 
-    def keep_slots(self, slots: List[BaseSlot]):
-        new_root_children = dict()
-        for slot in slots:
-            if not slot.has_children():
-                new_root_children[slot.name] = self.children[slot.name]
-            else:
-                new_root_children.update(
-                    {name: _slot for name, _slot in self.children.items() if name.startswith(slot.name)}
-                )
-        self.children = new_root_children
 
-
-root = RootSlot(name="root_slot")
-
-
-class AutoRegisterMixin:
-    def __init__(self, *, name: str, **data) -> None:
-        super().__init__(name=name, **data)
-        if root.freeze:
-            return
-        add_nodes, remove_nodes = flatten_slot_tree(self)
-        for key in remove_nodes.keys():
-            if key in root.children:
-                root.children.pop(key)
-        root.children.update(add_nodes)
+root_slot = RootSlot(name="root_slot")

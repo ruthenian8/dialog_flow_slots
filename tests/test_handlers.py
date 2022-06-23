@@ -3,7 +3,7 @@ import sys
 import pytest
 
 from df_slots.handlers import get_values, get_filled_template, extract
-from df_slots import FunctionSlot
+from df_slots import FunctionSlot, RootSlot
 
 
 @pytest.mark.parametrize(
@@ -15,12 +15,13 @@ from df_slots import FunctionSlot
         ("my name ain't Groot", True, [None]),
     ],
 )
-def test_get_template(input, noparams, expected, testing_context, testing_actor, root):
+def test_get_template(input, noparams, expected, testing_context, testing_actor, root: RootSlot):
     testing_context.add_request(input)
     slot_name = "creature_name"
     template = "{" + slot_name + "}"
     root.children.clear()
     slot = FunctionSlot(name=slot_name, func=lambda x: x.partition("name is ")[-1] or None)
+    root.register_slots(slot)
     if noparams:
         result_1 = extract(testing_context, testing_actor)
         result_2 = get_values(testing_context, testing_actor)

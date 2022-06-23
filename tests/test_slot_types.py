@@ -2,9 +2,9 @@ import sys
 
 import pytest
 
-from df_slots.slot_types import RegexpSlot, GroupSlot, FunctionSlot
+from df_slots.types import RegexpSlot, GroupSlot, FunctionSlot
 from df_slots import RootSlot
-from df_slots.slot_utils import flatten_slot_tree
+from df_slots.utils import flatten_slot_tree
 
 # pytest.skip(allow_module_level=True)
 
@@ -147,5 +147,4 @@ def test_flatten(root_name, length, children, names):
 def test_slot_root(root: RootSlot):
     slot = RegexpSlot(name="test", regexp=r".+")
     root.register_slots([slot])
-    root.keep_slots([slot])
     assert slot.name in root.children

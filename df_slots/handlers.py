@@ -8,8 +8,8 @@ from typing import Dict, Optional, List
 
 from df_engine.core import Context, Actor
 
-from .slot_types import BaseSlot, GroupSlot
-from .root import root
+from .types import BaseSlot, GroupSlot
+from .root import root_slot as root
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ def extract(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) -> li
     target_names = slots or [key for key in root.children.keys() if "/" not in key]
 
     storage = ctx.framework_states.get("slots")
-    if storage is None:
+    if storage is None or ctx.validation is True:
         logger.warning("Failed to extract slot values: storage missing.")
         return [None] * len(target_names)
 
@@ -73,8 +73,7 @@ def get_values(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) ->
     target_names = slots or list(root.children.keys())
 
     storage = ctx.framework_states.get("slots")
-    if storage is None:
-        logger.warning("Failed to get slot values: storage missing.")
+    if storage is None or ctx.validation is True:
         return [None] * len(target_names)
 
     return [storage.get(name) for name in target_names if name in storage]
@@ -97,18 +96,18 @@ def get_filled_template(template: str, ctx: Context, actor: Actor, slots: Option
         List of slot names to extract.
         Names of slots inside groups should be prefixed with group names, separated by '/': profile/username.
     """
-    filler_nodes: Dict[str, BaseSlot]
+    filler_slots: Dict[str, BaseSlot]
     if slots:
-        filler_nodes = {key: value for key, value in root.children.items() if key in slots}
+        filler_slots = {key: value for key, value in root.children.items() if key in slots}
     else:
-        filler_nodes = {key: value for key, value in root.children.items() if "/" not in key}
+        filler_slots = {key: value for key, value in root.children.items() if "/" not in key}
 
-    if not filler_nodes:
+    if not filler_slots:
         raise ValueError(
             "Given subset does not intersect with slots in root: {}".format(", ".join(slots) if slots else str(None))
         )
 
-    for _, slot in filler_nodes.items():
+    for _, slot in filler_slots.items():
         template = slot.fill_template(template)(ctx, actor)
 
     return template

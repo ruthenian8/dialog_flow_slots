@@ -16,12 +16,14 @@ from examples.example_utils import run_test
 @pytest.mark.parametrize(
     "module_name",
     [
-        # "examples.basic_example",
         "examples.generics_example",
+        # "examples.basic_example",
         "examples.handlers_example",
     ],
 )
 def test_examples(module_name):
+    df_slots.root_slot.children.clear()
+    # print(df_slots.root_slot.children)
     module = importlib.import_module(module_name)
     actor = getattr(module, "actor")
     testing_dialog = getattr(module, "testing_dialog")

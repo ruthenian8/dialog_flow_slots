@@ -1,7 +1,7 @@
 """
 Processing
 ---------------------------
-This module encapsulates operations that can be done to slots
+This module encapsulates operations that can be done to slots during the processing stage.
 """
 import logging
 from typing import Optional, Union, List, Callable

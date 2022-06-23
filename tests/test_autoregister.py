@@ -11,7 +11,8 @@ def test_nesting(root: RootSlot):
     name = GroupSlot(name="name", children=[f_name, l_name])
     cat_data = GroupSlot(name="cat_data", children=[name])
     cat = GroupSlot(name="cat", children=[cat_data])
-    root.keep_slots([cat])
+    root.children.clear()
+    root.register_slots([cat])
     assert sorted(root.children.keys()) == [
         "cat",
         "cat/cat_data",
@@ -27,11 +28,14 @@ def test_nesting_2(root: RootSlot):
     first = GroupSlot(name="first", children=[f_name])
     last = GroupSlot(name="last", children=[l_name])
     common = GroupSlot(name="common", children=[first, last])
-    root.keep_slots([common])
+    just_name = RegexpSlot(name="name", regexp=".+")
+    root.children.clear()
+    root.register_slots([just_name, common])
     assert sorted(root.children.keys()) == [
         "common",
         "common/first",
         "common/first/name",
         "common/last",
         "common/last/name",
+        "name",
     ]

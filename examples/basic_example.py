@@ -21,10 +21,13 @@ from examples import example_utils
 logger = logging.getLogger(__name__)
 
 # Group 1: person/username, person/email
-username_slot = df_slots.RegexpSlot(name="username", regexp=r"username is ([a-zA-Z]+)", target_group=1)
-# In regexp slot you can define a group that will be extracted. Default is 0: full match.
-email_slot = df_slots.RegexpSlot(name="email", regexp=r"email is ([a-z@\.A-Z]+)", target_group=1)
-person_slot = df_slots.GroupSlot(name="person", children=[username_slot, email_slot])
+person_slot = df_slots.GroupSlot(
+    name="person",
+    children=[
+        df_slots.RegexpSlot(name="username", regexp=r"username is ([a-zA-Z]+)", target_group=1),
+        df_slots.RegexpSlot(name="email", regexp=r"email is ([a-z@\.A-Z]+)", target_group=1),
+    ],
+)
 # Group 2: friend/first_name, friend/last_name
 friend_slot = df_slots.GroupSlot(
     name="friend",
@@ -33,6 +36,7 @@ friend_slot = df_slots.GroupSlot(
         df_slots.RegexpSlot(name="last_name", regexp=r"(?<= )[A-Z][a-z]+"),
     ],
 )
+df_slots.root_slot.register_slots([person_slot, friend_slot])
 # ALTERNATE SYNTAX: you can register slots manually.
 # from df_slots import slot_types
 # username_slot = slot_types.RegexpSlot(name="username", regexp=r"(?<=username is )[a-zA-Z]+")
