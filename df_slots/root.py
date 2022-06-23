@@ -1,4 +1,10 @@
-from typing import List, Union, Dict, Tuple
+"""
+Root
+---------------------------
+This module contains the root slot and the corresponding type. 
+This instance is a singleton, so it will be shared each time you use the add-on.
+"""
+from typing import List, Union
 
 from .slot_types import BaseSlot, GroupSlot
 from .slot_utils import flatten_slot_tree
@@ -9,7 +15,7 @@ def singleton(cls: type):
         if singleton_inner.instance is None:
             singleton_inner.instance = cls(*args, **kwargs)
         return singleton_inner.instance
-    
+
     singleton_inner.instance = None
     return singleton_inner
 
@@ -31,7 +37,9 @@ class RootSlot(GroupSlot):
             if not slot.has_children():
                 new_root_children[slot.name] = self.children[slot.name]
             else:
-                new_root_children.update({name: _slot for name, _slot in self.children.items() if name.startswith(slot.name)})
+                new_root_children.update(
+                    {name: _slot for name, _slot in self.children.items() if name.startswith(slot.name)}
+                )
         self.children = new_root_children
 
 

@@ -1,52 +1,62 @@
+"""
+Processing
+---------------------------
+This module encapsulates operations that can be done to slots
+"""
 import logging
-from typing import Union, List, Callable
-from functools import partial
+from typing import Optional, Union, List, Callable
 
 from df_engine.core import Context, Actor
 from df_generics import Response
 
-from .slot_types import BaseSlot, GroupSlot
-from .root import root
+from .handlers import get_filled_template, extract as extract_handler
 
 logger = logging.getLogger(__name__)
 
 
-def extract(slots: Union[None, List[str]]) -> Callable:
-    def extract_inner(ctx: Context, actor: Actor):
-        storage = ctx.framework_states.get("slots")
-        if storage is None:
-            logger.warning("Failed to extract slots: storage not in context")
-            return ctx
+def extract(slots: Optional[List[str]]) -> Callable:
+    """
+    Extract slots from a specified list.
 
-        target_names = slots or list(root.children.keys())
-        for key in target_names:
-            if not key in root.children:
-                logger.warning(f"Missing name: {key}")
-                continue
-            target_slot: BaseSlot = root.children.get(key)
-            val = target_slot.extract_value(ctx, actor)
-            if isinstance(target_slot, GroupSlot):
-                ctx.framework_states["slots"].update(val)
-            else:
-                ctx.framework_states["slots"][key] = val
+    Parameters
+    ----------
+
+    slots: Optional[List[str]]
+        List of slot names to extract.
+        Names of slots inside groups should be prefixed with group names, separated by '/': profile/username.
+    """
+
+    def extract_inner(ctx: Context, actor: Actor):
+        result = extract_handler(ctx, actor, slots)
         return ctx
 
     return extract_inner
 
 
-def fill_template():
+def fill_template(slots: Optional[List[str]] = None):
+    """
+    Fill the response template in the current node.
+    Response should be an instance of :py:class:`~str` or of the :py:class:`~Response` class from df_generics add-on.
+    Names of slots to be used should be placed in curly braces: 'Username is {profile/username}'.
+
+    Parameters
+    ----------
+
+    slots: Optional[List[str]] = None
+        Slot names to use. If this parameter is omitted, all slots will be used.
+    """
+
     def fill_inner(ctx: Context, actor: Actor) -> Union[Response, str]:
 
         # get current node response
         response = ctx.current_node.response
         if callable(response):
             response = response(ctx, actor)
+        if not isinstance(response, str) and not isinstance(response, Response):
+            return ctx
 
-        # process response
-        filler_nodes = {key: value for key, value in root.children.items() if "/" not in key}
-        new_template = response if isinstance(response, str) else response.text
-        for _, slot in filler_nodes.items():
-            new_template = slot.fill_template(new_template)(ctx, actor)
+        template = response if isinstance(response, str) else response.text
+        new_template = get_filled_template(template, ctx, actor, slots)
 
         # assign to node
         if isinstance(response, str):

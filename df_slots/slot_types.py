@@ -1,3 +1,10 @@
+"""
+Slot types
+---------------------------
+This module encapsulates different types of slots.
+Generally, these types should be imported from __init__.py for the sake of automatic registry.
+Import from here, if you want to registed slots manually.
+"""
 import re
 import logging
 from copy import copy
@@ -15,6 +22,11 @@ BaseSlot = ForwardRef("BaseSlot")
 
 
 class BaseSlot(BaseModel):
+    """
+    BaseSlot is a base class for all slots.
+    Not meant for direct subclassing, unlike :py:class:`~ValueSlot` and :py:class:`~GroupSlot`.
+    """
+
     name: str
 
     @validator("name", pre=True)
@@ -25,7 +37,7 @@ class BaseSlot(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
-    
+
     def __init__(self, name: str, **data):
         super().__init__(name=name, **data)
 
@@ -49,6 +61,14 @@ class BaseSlot(BaseModel):
 
 
 class GroupSlot(BaseSlot):
+    """
+    This class defines a slot group that includes one or more :py:class:`~ValueSlot` instances.
+    When a slot has been included to a group, it should further be referenced as a part of that group.
+    E. g. when slot 'name' is included to a group 'person',
+    from that point on it should be referenced as 'person/name'.
+
+    """
+
     children: Dict[str, BaseSlot] = Field(default_factory=dict)
 
     @validator("children", pre=True)
@@ -98,6 +118,12 @@ class GroupSlot(BaseSlot):
 
 
 class ValueSlot(BaseSlot):
+    """
+    Value slot is a base class for all slots that are designed to store and extract concrete values.
+    Subclass it, if you want to declare your own slot type.
+
+    """
+
     value: Any = None
 
     def __str__(self):
@@ -108,9 +134,12 @@ class ValueSlot(BaseSlot):
 
     def fill_template(self, template: str) -> Callable:
         def fill_inner(ctx: Context, actor: Actor) -> str:
+            if not self.name in template:
+                return template
+
             storage = ctx.framework_states.get("slots")
             if storage is None or self.name not in storage:
-                logger.warning("storage or storage entry missing")
+                logger.warning(f"Failed to fill a template: storage missing or slot {self.name} unregistered.")
                 return template
 
             value = storage.get(self.name)
@@ -122,7 +151,16 @@ class ValueSlot(BaseSlot):
 
 
 class RegexpSlot(ValueSlot):
+    """
+    RegexpSlot is a slot type that extracts its value using a regular expression.
+    You can pass a compiled or a non-compiled pattern to the `regexp` argument.
+    If you want to extract a particular group, but not the full match,
+    change the `target_group` parameter.
+
+    """
+
     regexp: Optional[re.Pattern] = Field(default=None, alias="regexp")
+    target_group: int = 0
 
     @validator("regexp", pre=True)
     def val_regexp(cls, reg):
@@ -132,11 +170,17 @@ class RegexpSlot(ValueSlot):
 
     def extract_value(self, ctx: Context, actor: Actor):
         search = re.search(self.regexp, ctx.last_request)
-        self.value = search.group() if search else None
+        self.value = search.group(self.target_group) if search else None
         return self.value
 
 
 class FunctionSlot(ValueSlot):
+    """
+    FunctionSlot employs user-defined callables to extract matches from a string.
+    The signature of a callable is fixed: it can only get and return strings.
+
+    """
+
     func: Callable[[str], str]
 
     def extract_value(self, ctx: Context, actor: Actor):

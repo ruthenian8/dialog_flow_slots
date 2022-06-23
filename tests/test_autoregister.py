@@ -28,4 +28,10 @@ def test_nesting_2(root: RootSlot):
     last = GroupSlot(name="last", children=[l_name])
     common = GroupSlot(name="common", children=[first, last])
     root.keep_slots([common])
-    assert sorted(root.children.keys()) == ["common", "common/first", "common/first/name", "common/last", "common/last/name"]
+    assert sorted(root.children.keys()) == [
+        "common",
+        "common/first",
+        "common/first/name",
+        "common/last",
+        "common/last/name",
+    ]

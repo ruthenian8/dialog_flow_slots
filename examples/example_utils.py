@@ -27,7 +27,7 @@ def turn_handler(
         msg = f"in_request={in_request} -> true_out_response != out_response: {true_out_response} != {out_response}"
         raise Exception(msg)
     else:
-        logging.info(f"in_request={in_request} -> {out_response}")
+        logging.log(logging.INFO, f"in_request={in_request} -> {out_response}")
     return out_response, ctx
 
 

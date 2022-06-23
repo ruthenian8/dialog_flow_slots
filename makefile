@@ -50,8 +50,8 @@ test_all: venv test lint
 .PHONY: test_all
 
 build_doc:
-	if [ "`which python`" != "venv/bin/python" ]; then exit 1; fi 
-	sphinx-apidoc -e -f -o docs/source/apiref dialog_flow_slots
+	if [[ "`which python`" != *"venv/bin/python" ]]; then exit 1; fi 
+	sphinx-apidoc -e -f -o docs/source/apiref df_slots
 	sphinx-build -M clean docs/source docs/build
 	sphinx-build -M html docs/source docs/build
 .PHONY: build_doc
