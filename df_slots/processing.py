@@ -9,7 +9,7 @@ from typing import Optional, Union, List, Callable
 from df_engine.core import Context, Actor
 from df_generics import Response
 
-from .handlers import get_filled_template, extract as extract_handler
+from .handlers import get_filled_template, extract as extract_handler, unset as unset_handler
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,19 @@ def extract(slots: Optional[List[str]]) -> Callable:
         Names of slots inside groups should be prefixed with group names, separated by '/': profile/username.
     """
 
-    def extract_inner(ctx: Context, actor: Actor):
+    def extract_inner(ctx: Context, actor: Actor) -> Context:
         result = extract_handler(ctx, actor, slots)
         return ctx
 
     return extract_inner
+
+
+def unset(slots: Optional[List[str]] = None):
+    def unset_inner(ctx: Context, actor: Actor) -> Context:
+        unset_handler(ctx, actor, slots)
+        return ctx
+
+    return unset_inner
 
 
 def fill_template(slots: Optional[List[str]] = None):

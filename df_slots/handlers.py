@@ -111,3 +111,34 @@ def get_filled_template(template: str, ctx: Context, actor: Actor, slots: Option
         template = slot.fill_template(template)(ctx, actor)
 
     return template
+
+
+def unset(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) -> None:
+    """
+    Expunge the target slot values from the context, so that they don't count as 'set' anymore.
+
+    Parameters
+    ----------
+
+    ctx: :py:class:`~Context`
+        DF engine context
+    actor: :py:class:`~Actor`
+        DF engine actor
+    slots: Optional[List[str]]
+        List of slot names to extract.
+        Names of slots inside groups should be prefixed with group names, separated by '/': profile/username.
+    """
+    if slots:
+        target_names = [key for key in slots if key in root.children]
+    else:
+        target_names = list(root.children.keys())
+
+    if not target_names:
+        logger.warning(
+            "Given subset does not intersect with slots in root: {}".format(", ".join(slots) if slots else str(None))
+        )
+        return
+
+    for name in target_names:
+        root.children[name].unset_value()(ctx, actor)
+    return

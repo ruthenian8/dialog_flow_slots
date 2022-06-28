@@ -40,12 +40,10 @@ def register_storage(actor: Actor, storage: Dict[str, str] = None) -> None:
     if not storage:
         storage = dict()
 
-    def create_slot_storage_inner(ctx: Context, actor: Actor, *args, **kwargs) -> None:
+    def register_storage_inner(ctx: Context, actor: Actor, *args, **kwargs) -> None:
         if "slots" in ctx.framework_states:
             return
         ctx.framework_states["slots"] = storage
         return
 
-    actor.handlers[ActorStage.CONTEXT_INIT] = actor.handlers.get(ActorStage.CONTEXT_INIT, []) + [
-        create_slot_storage_inner
-    ]
+    actor.handlers[ActorStage.CONTEXT_INIT] = actor.handlers.get(ActorStage.CONTEXT_INIT, []) + [register_storage_inner]

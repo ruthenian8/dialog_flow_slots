@@ -50,6 +50,9 @@ class BaseSlot(BaseModel):
     def has_children(self):
         return hasattr(self, "children") and len(self.children) > 0
 
+    def unset_value(self):
+        raise NotImplementedError("Base class has no attribute 'value'")
+
     def is_set(self):
         raise NotImplementedError("Base class has no attribute 'value'")
 
@@ -57,6 +60,11 @@ class BaseSlot(BaseModel):
         raise NotImplementedError("Base class has no attribute 'value'")
 
     def extract_value(self, ctx: Context, actor: Actor):
+        """
+        `Extract value` method is distinct for most slots. So, if you would like to
+        introduce your own slot type, it is assumed, that you will override the
+        extract_value method.
+        """
         raise NotImplementedError("Base class has no attribute 'value'")
 
 
@@ -101,6 +109,16 @@ class GroupSlot(BaseSlot):
     def is_set(self):
         return all(child.is_set() for child in self.children.values())
 
+    def unset_value(self):
+        def unset_inner(ctx: Context, actor: Actor):
+            if ctx.validation:
+                return
+
+            for child in self.children.values():
+                child.unset_value()(ctx, actor)
+
+        return unset_inner
+
     def fill_template(self, template: str) -> Callable:
         def fill_inner(ctx: Context, actor: Actor) -> str:
             new_template = template
@@ -132,20 +150,63 @@ class ValueSlot(BaseSlot):
     def is_set(self):
         return self.value is not None
 
-    def fill_template(self, template: str) -> Callable:
-        def fill_inner(ctx: Context, actor: Actor) -> str:
-            if not self.name in template:
+    def unset_value(self):
+        def unset_inner(ctx: Context, actor: Actor):
+            if ctx.validation:
+                return
+
+            if "slots" not in ctx.framework_states:
+                logger.warning(f"Failed to unset value for {self.name}: storage missing")
+                return
+
+            ctx.framework_states["slots"][self.name] = None
+
+        return unset_inner
+
+    def fill_template(self, template: str) -> Callable[[Context, Actor], str]:
+        """
+        Value Slot's `fill_template` method does not perform template filling on its own, but allows you
+        to cut corners on some standard operations. E. g., if you include the following snippet in
+        the `fill_inner` function, the target slot name is guaranteed to be in the template, while the
+        target slot itself is guaranteed to be set.
+
+        .. code-block::
+
+            checked_template = super(RegexpSlot, self).fill_template(template)(ctx, actor)
+            if not checked_template:
                 return template
+
+        Thus, if you don't want to add any customizations, you can just replace the slot name and return
+        the yielded string.
+
+        .. code-block::
+
+            value = ctx.framework_states["slots"][self.name]
+            return checked_template.replace("{" + self.name + "}", value)
+
+        Meanwhile, you can choose any other replacement string, depending on the slot value.
+
+        .. code-block::
+
+            value = ctx.framework_states["slots"][self.name]
+            new_value = "biggie" if value == "big" else value
+            return checked_template.replace("{" + self.name + "}", new_value)
+
+        """
+
+        def fill_inner(ctx: Context, actor: Actor) -> Optional[str]:
+            if not self.name in template:
+                return None
 
             storage = ctx.framework_states.get("slots")
             if storage is None or self.name not in storage:
                 logger.warning(f"Failed to fill a template: storage missing or slot {self.name} unregistered.")
-                return template
+                return None
 
-            value = storage.get(self.name)
-            if value is None:
-                return template
-            return template.replace("{" + self.name + "}", value)
+            if storage.get(self.name) is None:
+                return None
+
+            return template
 
         return fill_inner
 
@@ -168,6 +229,17 @@ class RegexpSlot(ValueSlot):
             return re.compile(reg)
         return reg
 
+    def fill_template(self, template: str) -> Callable:
+        def fill_inner(ctx: Context, actor: Actor):
+            checked_template = super(RegexpSlot, self).fill_template(template)(ctx, actor)
+            if not checked_template:
+                return template
+
+            value = ctx.framework_states["slots"][self.name]
+            return checked_template.replace("{" + self.name + "}", value)
+
+        return fill_inner
+
     def extract_value(self, ctx: Context, actor: Actor):
         search = re.search(self.regexp, ctx.last_request)
         self.value = search.group(self.target_group) if search else None
@@ -182,6 +254,17 @@ class FunctionSlot(ValueSlot):
     """
 
     func: Callable[[str], str]
+
+    def fill_template(self, template: str) -> Callable:
+        def fill_inner(ctx: Context, actor: Actor):
+            checked_template = super(FunctionSlot, self).fill_template(template)(ctx, actor)
+            if not checked_template:
+                return template
+
+            value = ctx.framework_states["slots"][self.name]
+            return checked_template.replace("{" + self.name + "}", value)
+
+        return fill_inner
 
     def extract_value(self, ctx: Context, actor: Actor):
         self.value = self.func(ctx.last_request)
