@@ -3,12 +3,13 @@ Conditions
 ---------------------------
 Functions from this module allow you to condition graph transitions depending on slot values.
 """
-from typing import List, Callable
+from typing import Dict, List, Callable
 from functools import partial
 
 from df_engine.core import Context, Actor
 
-from .handlers import get_values
+from .root import root_slot
+from .utils import requires_storage
 
 
 def is_set(slots: List[str], use_all: bool = True, use_any: bool = False) -> Callable:
@@ -26,8 +27,9 @@ def is_set(slots: List[str], use_all: bool = True, use_any: bool = False) -> Cal
     if use_all == use_any:
         raise ValueError("Parameters `use_all` and `use_any` are mutually exclusive.")
 
+    @requires_storage("Cannot check slot status: slot storage missing.", return_val=False)
     def is_set_inner(ctx: Context, actor: Actor) -> bool:
-        slots_set = get_values(ctx, actor, slots)
+        slots_set = [root_slot.children[name].is_set()(ctx, actor) for name in slots]
         if use_all:
             return all(slots_set)
         if use_any:
@@ -41,3 +43,23 @@ is_set_all.__doc__ = is_set.__doc__
 
 is_set_any = partial(is_set, use_any=True, use_all=False)
 is_set_any.__doc__ = is_set.__doc__
+
+
+def set_like_mask(mask: Dict[str, bool]) -> Callable[[Context, Actor], bool]:
+    """
+    Check, if the state of one or more slots corresponds to a dict-based boolean mask.
+
+    Parameters
+    ----------
+
+    mask: Dict[str, bool]
+        Dictionary-based boolean mask. Keys are slot names, values are slot states.
+        `True` for 'set', `False` for 'not set'.
+    """
+
+    def set_like_mask_inner(ctx: Context, actor: Actor) -> bool:
+        slots = list(mask.keys())
+        values = [root_slot.children[name].is_set()(ctx, actor) for name in slots]
+        return list(mask.values()) == values
+
+    return set_like_mask_inner

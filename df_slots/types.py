@@ -6,22 +6,25 @@ Generally, these types should be imported from __init__.py for the sake of autom
 Import from here, if you want to registed slots manually.
 """
 import re
+from abc import ABC, abstractmethod
 import logging
 from copy import copy
 from collections.abc import Iterable
-from typing import Callable, Optional, Any, Dict
+from typing import Callable, Optional, Any, Dict, Union, List
 
 from df_engine.core import Context, Actor
 
 from pydantic import Field, BaseModel, validator
 from pydantic.typing import ForwardRef
 
+from .utils import requires_storage, SLOT_STORAGE_KEY
+
 logger = logging.getLogger(__name__)
 
 BaseSlot = ForwardRef("BaseSlot")
 
 
-class BaseSlot(BaseModel):
+class BaseSlot(BaseModel, ABC):
     """
     BaseSlot is a base class for all slots.
     Not meant for direct subclassing, unlike :py:class:`~ValueSlot` and :py:class:`~GroupSlot`.
@@ -47,19 +50,27 @@ class BaseSlot(BaseModel):
     def __eq__(self, other: BaseSlot):
         return self.dict(exclude={"name"}) == other.dict(exclude={"name"})
 
-    def has_children(self):
+    def has_children(self) -> bool:
         return hasattr(self, "children") and len(self.children) > 0
 
-    def unset_value(self):
+    @abstractmethod
+    def unset_value(self) -> Callable[[Context, Actor], None]:
         raise NotImplementedError("Base class has no attribute 'value'")
 
-    def is_set(self):
+    @abstractmethod
+    def get_value(self) -> Callable[[Context, Actor], Dict[str, Union[str, None]]]:
         raise NotImplementedError("Base class has no attribute 'value'")
 
+    @abstractmethod
+    def is_set(self) -> Callable[[Context, Actor], bool]:
+        raise NotImplementedError("Base class has no attribute 'value'")
+
+    @abstractmethod
     def fill_template(self, template: str) -> Callable[[Context, Actor], str]:
         raise NotImplementedError("Base class has no attribute 'value'")
 
-    def extract_value(self, ctx: Context, actor: Actor):
+    @abstractmethod
+    def extract_value(self, ctx: Context, actor: Actor) -> Any:
         """
         `Extract value` method is distinct for most slots. So, if you would like to
         introduce your own slot type, it is assumed, that you will override the
@@ -80,10 +91,12 @@ class GroupSlot(BaseSlot):
     children: Dict[str, BaseSlot] = Field(default_factory=dict)
 
     @validator("children", pre=True)
-    def validate_children(cls, children):
+    def validate_children(cls, children, values: dict):
         if not isinstance(children, dict) and isinstance(children, Iterable):
-            new_children = {child.name: child for child in children}
-            return new_children
+            children = {child.name: child for child in children}
+        if len(children) == 0:
+            name = values["name"]
+            raise ValueError(f"Error in slot {name}: group slot should have at least one child or more.")
         return children
 
     @property
@@ -96,30 +109,36 @@ class GroupSlot(BaseSlot):
                 values.update({child.name: child.value})
         return values
 
-    def __getattr__(self, attr: str):
-        try:
-            value = self.__getattribute__(attr)
-        except AttributeError:
-            value = self.children.get(attr) or ""  # for slot filling
-        return value
-
-    def __str__(self):
-        return f":Slot group {self.name}:"
-
     def is_set(self):
-        return all(child.is_set() for child in self.children.values())
+        @requires_storage(f"Can't check value for {self.name}: slot storage missing", return_val=False)
+        def is_set_inner(ctx: Context, actor: Actor):
+            return all([child.is_set()(ctx, actor) for child in self.children.values()])
+
+        return is_set_inner
+
+    def get_value(self) -> Callable[[Context, Actor], Dict[str, Union[str, None]]]:
+        @requires_storage(f"Can't get value for {self.name}: slot storage missing")
+        def get_inner(ctx: Context, actor: Actor) -> Dict[str, Union[str, None]]:
+            values = dict()
+            for child in self.children.values():
+                if isinstance(child, GroupSlot):
+                    values.update({key: value for key, value in child.get_value()(ctx, actor).items()})
+                else:
+                    values.update({child.name: child.get_value()(ctx, actor)})
+            return values
+
+        return get_inner
 
     def unset_value(self):
+        @requires_storage(f"Can't unset value for {self.name}: slot storage missing")
         def unset_inner(ctx: Context, actor: Actor):
-            if ctx.validation:
-                return
-
             for child in self.children.values():
                 child.unset_value()(ctx, actor)
 
         return unset_inner
 
     def fill_template(self, template: str) -> Callable:
+        @requires_storage(f"Can't fill a template with {self.name}: slot storage missing.", return_val=template)
         def fill_inner(ctx: Context, actor: Actor) -> str:
             new_template = template
             for _, child in self.children.items():
@@ -144,22 +163,24 @@ class ValueSlot(BaseSlot):
 
     value: Any = None
 
-    def __str__(self):
-        return str(self.value) if self.value else ""
-
     def is_set(self):
-        return self.value is not None
+        @requires_storage(f"Can't check value for {self.name}: slot storage missing", return_val=False)
+        def is_set_inner(ctx: Context, actor: Actor):
+            return bool(ctx.framework_states[SLOT_STORAGE_KEY].get(self.name))
+
+        return is_set_inner
+
+    def get_value(self) -> Callable[[Context, Actor], Union[str, None]]:
+        @requires_storage(f"Can't get value for {self.name}: slot storage missing")
+        def get_inner(ctx: Context, actor: Actor) -> Union[str, None]:
+            return ctx.framework_states[SLOT_STORAGE_KEY].get(self.name)
+
+        return get_inner
 
     def unset_value(self):
+        @requires_storage(f"Can't unset value for {self.name}: slot storage missing")
         def unset_inner(ctx: Context, actor: Actor):
-            if ctx.validation:
-                return
-
-            if "slots" not in ctx.framework_states:
-                logger.warning(f"Failed to unset value for {self.name}: storage missing")
-                return
-
-            ctx.framework_states["slots"][self.name] = None
+            ctx.framework_states[SLOT_STORAGE_KEY][self.name] = None
 
         return unset_inner
 
@@ -174,7 +195,7 @@ class ValueSlot(BaseSlot):
 
             checked_template = super(RegexpSlot, self).fill_template(template)(ctx, actor)
             if not checked_template:
-                return template
+                return '...some stub response...'
 
         Thus, if you don't want to add any customizations, you can just replace the slot name and return
         the yielded string.
@@ -194,18 +215,10 @@ class ValueSlot(BaseSlot):
 
         """
 
-        def fill_inner(ctx: Context, actor: Actor) -> Optional[str]:
-            if not self.name in template:
+        @requires_storage(f"Can't fill a template with {self.name}: slot storage missing.")
+        def fill_inner(ctx: Context, actor: Actor) -> Union[str, None]:
+            if not self.name in template or self.get_value()(ctx, actor) is None:
                 return None
-
-            storage = ctx.framework_states.get("slots")
-            if storage is None or self.name not in storage:
-                logger.warning(f"Failed to fill a template: storage missing or slot {self.name} unregistered.")
-                return None
-
-            if storage.get(self.name) is None:
-                return None
-
             return template
 
         return fill_inner
@@ -232,10 +245,10 @@ class RegexpSlot(ValueSlot):
     def fill_template(self, template: str) -> Callable:
         def fill_inner(ctx: Context, actor: Actor):
             checked_template = super(RegexpSlot, self).fill_template(template)(ctx, actor)
-            if not checked_template:
+            if checked_template is None:  # the check returning None means that an error has occured.
                 return template
 
-            value = ctx.framework_states["slots"][self.name]
+            value = ctx.framework_states[SLOT_STORAGE_KEY][self.name]
             return checked_template.replace("{" + self.name + "}", value)
 
         return fill_inner
@@ -258,10 +271,10 @@ class FunctionSlot(ValueSlot):
     def fill_template(self, template: str) -> Callable:
         def fill_inner(ctx: Context, actor: Actor):
             checked_template = super(FunctionSlot, self).fill_template(template)(ctx, actor)
-            if not checked_template:
+            if not checked_template:  # the check returning None means that an error has occured.
                 return template
 
-            value = ctx.framework_states["slots"][self.name]
+            value = ctx.framework_states[SLOT_STORAGE_KEY][self.name]
             return checked_template.replace("{" + self.name + "}", value)
 
         return fill_inner

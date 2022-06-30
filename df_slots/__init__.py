@@ -3,6 +3,7 @@ from .handlers import *
 from .types import GroupSlot, ValueSlot, RegexpSlot, FunctionSlot
 from .utils import register_storage
 from .root import root_slot, RootSlot
+from .forms import Form, FormState
 from . import conditions
 from . import response
 from . import processing

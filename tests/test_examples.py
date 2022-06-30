@@ -21,8 +21,8 @@ from examples.example_utils import run_test
         "examples.handlers_example",
     ],
 )
-def test_examples(module_name):
-    df_slots.root_slot.children.clear()
+def test_examples(module_name, root):
+    root.children.clear()
     # print(df_slots.root_slot.children)
     module = importlib.import_module(module_name)
     actor = getattr(module, "actor")

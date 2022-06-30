@@ -4,10 +4,9 @@ Root
 This module contains the root slot and the corresponding type. 
 This instance is a singleton, so it will be shared each time you use the add-on.
 """
-from typing import List, Union
+from typing import List, Union, Tuple, Dict
 
 from .types import BaseSlot, GroupSlot
-from .utils import flatten_slot_tree
 
 
 def singleton(cls: type):
@@ -18,6 +17,19 @@ def singleton(cls: type):
 
     singleton_inner.instance = None
     return singleton_inner
+
+
+def flatten_slot_tree(node: BaseSlot) -> Tuple[Dict[str, BaseSlot], Dict[str, BaseSlot]]:
+    add_nodes = {node.name: node}
+    remove_nodes = {}
+    if node.has_children():
+        for name, child in node.children.items():
+            remove_nodes.update({child.name: child})
+            child.name = "/".join([node.name, name])
+            child_add_nodes, child_remove_nodes = flatten_slot_tree(child)
+            add_nodes.update(child_add_nodes)
+            remove_nodes.update(child_remove_nodes)
+    return add_nodes, remove_nodes
 
 
 @singleton

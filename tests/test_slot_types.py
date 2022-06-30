@@ -3,8 +3,7 @@ import sys
 import pytest
 
 from df_slots.types import RegexpSlot, GroupSlot, FunctionSlot
-from df_slots import RootSlot
-from df_slots.utils import flatten_slot_tree
+from df_slots.root import flatten_slot_tree, RootSlot
 
 # pytest.skip(allow_module_level=True)
 
@@ -18,11 +17,13 @@ from df_slots.utils import flatten_slot_tree
     ],
 )
 def test_regexp(input, regexp, expected, _set, testing_context, testing_actor):
+    testing_context = testing_context.copy()
     testing_context.add_request(input)
     slot = RegexpSlot(name="test", regexp=regexp)
     result = slot.extract_value(testing_context, testing_actor)
     assert result == expected
-    assert slot.is_set() == _set
+    testing_context.framework_states["slots"][slot.name] = result
+    assert slot.is_set()(testing_context, testing_actor) == _set
 
 
 @pytest.mark.parametrize(
@@ -49,12 +50,14 @@ def test_regexp(input, regexp, expected, _set, testing_context, testing_actor):
     ],
 )
 def test_group(input, children, expected, is_set, testing_context, testing_actor):
+    testing_context = testing_context.copy()
     testing_context.add_request(input)
     slot = GroupSlot(name="test", children=children)
     assert len(slot.children) == len(children)
     result = slot.extract_value(testing_context, testing_actor)
-    assert slot.is_set() == is_set
     assert result == expected
+    testing_context.framework_states["slots"].update(result)
+    assert slot.is_set()(testing_context, testing_actor) == is_set
 
 
 @pytest.mark.parametrize(
@@ -71,16 +74,17 @@ def test_group(input, children, expected, is_set, testing_context, testing_actor
     ],
 )
 def test_function(input, func, expected, _set, testing_context, testing_actor):
+    testing_context = testing_context.copy()
     testing_context.add_request(input)
     slot = FunctionSlot(name="test", func=func)
     result = slot.extract_value(testing_context, testing_actor)
     assert result == expected
-    assert slot.is_set() == _set
+    testing_context.framework_states["slots"][slot.name] = result
+    assert slot.is_set()(testing_context, testing_actor) == _set
 
 
 def test_children():
     slot = GroupSlot(name="test", children=[RegexpSlot(name="test", regexp="(?<=am ).+")])
-    assert slot.test is slot.children["test"]
     assert slot.has_children() == True
     slot.children.pop("test")
     assert slot.has_children() == False

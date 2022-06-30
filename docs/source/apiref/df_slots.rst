@@ -8,12 +8,13 @@ Submodules
    :maxdepth: 4
 
    df_slots.conditions
+   df_slots.forms
    df_slots.handlers
    df_slots.processing
    df_slots.response
    df_slots.root
-   df_slots.slot_types
-   df_slots.slot_utils
+   df_slots.types
+   df_slots.utils
 
 Module contents
 ---------------

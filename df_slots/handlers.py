@@ -10,6 +10,7 @@ from df_engine.core import Context, Actor
 
 from .types import BaseSlot, GroupSlot
 from .root import root_slot as root
+from .utils import SLOT_STORAGE_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,10 @@ def extract(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) -> li
     Extract the specified slots and return the received values as a list.
     If the value of a particular slot cannot be extracted, None is included instead.
     If `slots` argument is not provided, all slots will be extracted and returned.
+
+    :return: A list of extracted values. If a list of slot names has been passed,
+    the list of values is guaranteed to be of the same length.
+    Otherwise, the length equals the number of all non-child slots.
 
     Parameters
     ----------
@@ -33,7 +38,7 @@ def extract(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) -> li
     """
     target_names = slots or [key for key in root.children.keys() if "/" not in key]
 
-    storage = ctx.framework_states.get("slots")
+    storage = ctx.framework_states.get(SLOT_STORAGE_KEY)
     if storage is None or ctx.validation is True:
         logger.warning("Failed to extract slot values: storage missing.")
         return [None] * len(target_names)
@@ -46,9 +51,9 @@ def extract(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) -> li
         target_slot: BaseSlot = root.children.get(name)
         val = target_slot.extract_value(ctx, actor)
         if isinstance(target_slot, GroupSlot):
-            ctx.framework_states["slots"].update(val)
+            ctx.framework_states[SLOT_STORAGE_KEY].update(val)
         else:
-            ctx.framework_states["slots"][name] = val
+            ctx.framework_states[SLOT_STORAGE_KEY][name] = val
         results.append(val)
 
     return results
@@ -58,6 +63,10 @@ def get_values(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) ->
     """
     Get values of the specified slots, assuming that they have been extracted beforehand.
     If slot argument is omitted, values of all slots will be returned.
+
+    :return: A list of values. If a list of slot names has been passed,
+    the list of values is guaranteed to be of the same length.
+    Otherwise, the length equals the number of all non-child slots.
 
     Parameters
     ----------
@@ -70,13 +79,19 @@ def get_values(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) ->
         List of slot names to extract.
         Names of slots inside groups should be prefixed with group names, separated by '/': profile/username.
     """
-    target_names = slots or list(root.children.keys())
+    target_names = slots or [key for key in root.children.keys() if "/" not in key]
 
-    storage = ctx.framework_states.get("slots")
+    storage = ctx.framework_states.get(SLOT_STORAGE_KEY)
     if storage is None or ctx.validation is True:
-        return [None] * len(target_names)
+        return [{key: None} for key in target_names]
 
-    return [storage.get(name) for name in target_names if name in storage]
+    results = []
+    for name in target_names:
+        if name not in root.children:
+            results.append(None)
+        else:
+            results.append(root.children[name].get_value()(ctx, actor))
+    return results
 
 
 def get_filled_template(template: str, ctx: Context, actor: Actor, slots: Optional[List[str]] = None) -> str:
@@ -131,7 +146,7 @@ def unset(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) -> None
     if slots:
         target_names = [key for key in slots if key in root.children]
     else:
-        target_names = list(root.children.keys())
+        target_names = [key for key in root.children.keys() if "/" not in key]
 
     if not target_names:
         logger.warning(

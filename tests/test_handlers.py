@@ -6,6 +6,7 @@ import df_slots
 from df_slots.handlers import get_values, get_filled_template, extract, unset
 from df_slots import FunctionSlot, RootSlot
 from df_slots.types import BaseSlot
+from df_slots.conditions import is_set_any
 
 
 @pytest.mark.parametrize(
@@ -47,8 +48,8 @@ def test_error(testing_context, testing_actor):
     ["slot", "noparams"],
     [
         (df_slots.RegexpSlot(name="test", regexp=".+"), False),
-        (df_slots.GroupSlot(name="test", children=[df_slots.RegexpSlot(name="test", regexp=".+")]), False),
         (df_slots.RegexpSlot(name="test", regexp=".+"), True),
+        (df_slots.GroupSlot(name="test", children=[df_slots.RegexpSlot(name="test", regexp=".+")]), False),
         (df_slots.GroupSlot(name="test", children=[df_slots.RegexpSlot(name="test", regexp=".+")]), True),
     ],
 )
@@ -59,9 +60,8 @@ def test_unset(testing_context, testing_actor, slot: BaseSlot, noparams: bool, r
     if not noparams:
         pre_result = extract(testing_context, testing_actor, [slot.name])
         unset(testing_context, testing_actor, [slot.name])
-        result = get_values(testing_context, testing_actor, [slot.name])
     else:
         pre_result = extract(testing_context, testing_actor)
         unset(testing_context, testing_actor)
-        result = get_values(testing_context, testing_actor)
-    assert all(result) == False
+    result = is_set_any([slot.name])(testing_context, testing_actor)
+    assert result == False
