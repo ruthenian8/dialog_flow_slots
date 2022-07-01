@@ -18,10 +18,10 @@ def is_unrelated_intent(ctx, actor):
     return False
 
 
-RestaurantCuisine = df_slots.RegexpSlot(name="cuisine", regexp=r" ([A-Za-z]+) cuisine", target_group=1)
+RestaurantCuisine = df_slots.RegexpSlot(name="cuisine", regexp=r"([A-Za-z]+) cuisine", target_group=1)
 RestaurantAddress = df_slots.RegexpSlot(name="restaurantaddress", regexp=r"at (.+)|in (.+)", target_group=1)
 NumberOfPeople = df_slots.RegexpSlot(name="numberofpeople", regexp=r"[0-9]+")
-RestaurantForm = df_slots.Form(
+RestaurantForm = df_slots.FormPolicy(
     "restaurant",
     {
         RestaurantCuisine.name: [("restaurant", "cuisine")],
@@ -29,16 +29,19 @@ RestaurantForm = df_slots.Form(
         NumberOfPeople.name: [("restaurant", "number")],
     },
 )
-df_slots.root_slot.register_slots([RestaurantCuisine, RestaurantAddress, NumberOfPeople])
+df_slots.add_slots([RestaurantCuisine, RestaurantAddress, NumberOfPeople])
 
 script = {
     GLOBAL: {
         TRANSITIONS: {
-            RestaurantForm.to_next_slot(0.7): cnd.true(),
+            RestaurantForm.to_next_label(0.9): RestaurantForm.is_active(),
         },
         PRE_TRANSITIONS_PROCESSING: {"update_form_state": RestaurantForm.update_form_state()},
     },
     "restaurant": {
+        LOCAL: {
+            TRANSITIONS: {("chitchat", "chat_3", 0.7): cnd.true()}  # this transition ensures the form loop can be left
+        },
         "cuisine": {
             RESPONSE: "What kind of cuisine would you like to have?",
             PRE_TRANSITIONS_PROCESSING: {"extraction": slot_procs.extract([RestaurantCuisine.name])},
@@ -53,16 +56,18 @@ script = {
         },
     },
     "chitchat": {
-        LOCAL: {lbl.forward(0.9): cnd.true()},
+        LOCAL: {TRANSITIONS: {lbl.forward(0.8): cnd.true()}},
         "chat_1": {RESPONSE: "How's life?"},
         "chat_2": {RESPONSE: "Who do you think will win the Champions League?"},
         "chat_25": {
             RESPONSE: "What kind of cuisine do you like?",
-            PRE_TRANSITIONS_PROCESSING: {"extraction": slot_procs.extract([RestaurantCuisine.name])},
+            PRE_TRANSITIONS_PROCESSING: {
+                "extraction": slot_procs.extract([RestaurantCuisine.name]),
+                "activate_form": RestaurantForm.update_form_state(df_slots.FormState.ACTIVE),
+            },
         },
         "chat_3": {
             RESPONSE: "Did you like the latest Star Wars film?",
-            PRE_TRANSITIONS_PROCESSING: {"activate": RestaurantForm.update_form_state(df_slots.FormState.active)},
         },
     },
     "root": {

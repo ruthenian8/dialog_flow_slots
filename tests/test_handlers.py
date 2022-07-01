@@ -4,7 +4,7 @@ import pytest
 import df_slots
 
 from df_slots.handlers import get_values, get_filled_template, extract, unset
-from df_slots import FunctionSlot, RootSlot
+from df_slots import FunctionSlot, RootSlot, add_slots
 from df_slots.types import BaseSlot
 from df_slots.conditions import is_set_any
 
@@ -24,7 +24,7 @@ def test_get_template(input, noparams, expected, testing_context, testing_actor,
     template = "{" + slot_name + "}"
     root.children.clear()
     slot = FunctionSlot(name=slot_name, func=lambda x: x.partition("name is ")[-1] or None)
-    root.register_slots(slot)
+    add_slots([slot])
     if noparams:
         result_1 = extract(testing_context, testing_actor)
         result_2 = get_values(testing_context, testing_actor)
@@ -55,7 +55,7 @@ def test_error(testing_context, testing_actor):
 )
 def test_unset(testing_context, testing_actor, slot: BaseSlot, noparams: bool, root: RootSlot):
     root.children.clear()
-    root.register_slots(slot)
+    add_slots([slot])
     testing_context.add_request("Something")
     if not noparams:
         pre_result = extract(testing_context, testing_actor, [slot.name])

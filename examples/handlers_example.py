@@ -25,14 +25,14 @@ pet = df_slots.GroupSlot(
         df_slots.GroupSlot(
             name="pet_info",
             children=[
-                df_slots.RegexpSlot(name="sort", regexp=r"(dog|cat)", target_group=1),
-                df_slots.RegexpSlot(name="gender", regexp=r"(she|(?<=[^s])he|^he)", target_group=1),
-                df_slots.RegexpSlot(name="behaviour", regexp=r"(good|bad)", target_group=1),
+                df_slots.RegexpSlot(name="sort", regexp=r"(dog|cat)", match_group_idx=1),
+                df_slots.RegexpSlot(name="gender", regexp=r"(she|(?<=[^s])he|^he)", match_group_idx=1),
+                df_slots.RegexpSlot(name="behaviour", regexp=r"(good|bad)", match_group_idx=1),
             ],
         )
     ],
 )
-df_slots.root_slot.register_slots(pet)
+df_slots.add_slots(pet)
 
 # You can use df_slots handlers to define custom functions.
 # These include conditions, responses, and processing routines.

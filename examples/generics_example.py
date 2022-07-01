@@ -24,10 +24,10 @@ logger = logging.getLogger(__name__)
 
 
 # In regexp slot you can define a group that will be extracted. Default is 0: full match.
-username_slot = df_slots.RegexpSlot(name="username", regexp=r"username is ([a-zA-Z]+)", target_group=1)
-email_slot = df_slots.RegexpSlot(name="email", regexp=r"(?<=email is )[a-z@\.A-Z]+", target_group=0)
+username_slot = df_slots.RegexpSlot(name="username", regexp=r"username is ([a-zA-Z]+)", match_group_idx=1)
+email_slot = df_slots.RegexpSlot(name="email", regexp=r"(?<=email is )[a-z@\.A-Z]+", match_group_idx=0)
 person_slot = df_slots.GroupSlot(name="person", children=[username_slot, email_slot])
-df_slots.root_slot.register_slots(person_slot)
+df_slots.add_slots(person_slot)
 
 script = {
     GLOBAL: {TRANSITIONS: {("username_flow", "ask"): cnd.regexp(r"^[sS]tart")}},

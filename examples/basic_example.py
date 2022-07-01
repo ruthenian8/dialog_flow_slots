@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 person_slot = df_slots.GroupSlot(
     name="person",
     children=[
-        df_slots.RegexpSlot(name="username", regexp=r"username is ([a-zA-Z]+)", target_group=1),
-        df_slots.RegexpSlot(name="email", regexp=r"email is ([a-z@\.A-Z]+)", target_group=1),
+        df_slots.RegexpSlot(name="username", regexp=r"username is ([a-zA-Z]+)", match_group_idx=1),
+        df_slots.RegexpSlot(name="email", regexp=r"email is ([a-z@\.A-Z]+)", match_group_idx=1),
     ],
 )
 # Group 2: friend/first_name, friend/last_name
@@ -36,7 +36,7 @@ friend_slot = df_slots.GroupSlot(
         df_slots.RegexpSlot(name="last_name", regexp=r"(?<= )[A-Z][a-z]+"),
     ],
 )
-df_slots.root_slot.register_slots([person_slot, friend_slot])
+df_slots.add_slots([person_slot, friend_slot])
 # ALTERNATE SYNTAX: you can register slots manually.
 # from df_slots import slot_types
 # username_slot = slot_types.RegexpSlot(name="username", regexp=r"(?<=username is )[a-zA-Z]+")

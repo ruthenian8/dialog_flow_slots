@@ -4,7 +4,8 @@ Root
 This module contains the root slot and the corresponding type. 
 This instance is a singleton, so it will be shared each time you use the add-on.
 """
-from typing import List, Union, Tuple, Dict
+from typing import Tuple, Dict
+from functools import singledispatch
 
 from .types import BaseSlot, GroupSlot
 
@@ -34,12 +35,25 @@ def flatten_slot_tree(node: BaseSlot) -> Tuple[Dict[str, BaseSlot], Dict[str, Ba
 
 @singleton
 class RootSlot(GroupSlot):
-    def register_slots(self, slots: Union[List[BaseSlot], BaseSlot]) -> dict:
-        if isinstance(slots, BaseSlot):
-            slots = [slots]
-        for slot in slots:
-            add_nodes, _ = flatten_slot_tree(slot)
-            self.children.update(add_nodes)
+    pass
 
 
 root_slot = RootSlot(name="root_slot")
+
+
+@singledispatch
+def add_slots(slots):
+    raise NotImplementedError
+
+
+@add_slots.register(BaseSlot)
+def _(slots: BaseSlot):
+    add_nodes, _ = flatten_slot_tree(slots)
+    root_slot.children.update(add_nodes)
+
+
+@add_slots.register(set)
+@add_slots.register(list)
+def _(slots):
+    for slot in slots:
+        add_slots(slot)

@@ -5,12 +5,12 @@ This module holds the :class:`~Form` class that can be used to create a global f
 """
 from typing import Optional, Callable, List, Dict
 from enum import Enum, auto
-from math import inf
 from random import choice
+from math import inf
 from collections import Counter
 
 import df_engine.labels as lbl
-from pydantic import BaseModel, Field, PrivateAttr, validate_arguments, validator, ValidationError
+from pydantic import BaseModel, Field, PrivateAttr, validate_arguments
 
 from df_engine.core import Context, Actor
 from df_engine.core.types import NodeLabel3Type, NodeLabel2Type
@@ -22,17 +22,18 @@ from .utils import requires_storage, FORM_STORAGE_KEY
 
 
 class FormState(Enum):
-    inactive = auto()
-    active = auto()
-    finished = auto()
+    INACTIVE = auto()
+    ACTIVE = auto()
+    COMPLETE = auto()
+    FAILED = auto()
 
 
-class Form(BaseModel):
+class FormPolicy(BaseModel):
     """
     This class holds a mapping between slots and nodes that are required to set them.
     To make this policy affect the dialogue and enforce transitions to required nodes,
     you should include `to_next_slot` method into `GLOBAL` `TRANSITIONS` of your :py:class:`~Script`,
-    while `update_form_status` should be included into `GLOBAL` `PRE_TRANSITION_PROCESSING`.
+    while `update_form_state` should be included into `GLOBAL` `PRE_TRANSITION_PROCESSING`.
     Check out the method documentation for details.
 
     .. code-block::
@@ -46,7 +47,9 @@ class Form(BaseModel):
                 TRANSITIONS: {
                     form_1.to_next_slot(0.1): cnd.true()
                 },
-                PRE_TRANSITION_PROCESSING: form_1.update_form_status()
+                PRE_TRANSITION_PROCESSING: {
+                    "proc_1": form_1.update_form_state()
+                }
             }
             "flow_1": {
                 "node_1": {
@@ -87,7 +90,7 @@ class Form(BaseModel):
         """
         super().__init__(name=name, mapping=mapping, allowed_repeats=allowed_repeats, **data)
 
-    def to_next_slot(self, priority: Optional[float] = None) -> Callable[[Context, Actor], NodeLabel3Type]:
+    def to_next_label(self, priority: Optional[float] = None) -> Callable[[Context, Actor], NodeLabel3Type]:
         """
         This method checks, if all slots from the form have been set and returns transitions to required nodes,
         if there remain any. Returns an always ignored transition otherwise.
@@ -101,31 +104,43 @@ class Form(BaseModel):
 
         """
 
-        @requires_storage(
-            "Form storage has not been registered.", storage_key=FORM_STORAGE_KEY, return_val=lbl.to_fallback(-inf)
-        )
         def to_next_slot_inner(ctx: Context, actor: Actor) -> NodeLabel3Type:
-            state = ctx.framework_states[FORM_STORAGE_KEY].get(self.name, FormState.inactive)
-            if not state == FormState.active:
-                return lbl.to_fallback(-inf)(ctx, actor)
-
             current_priority = priority or actor.label_priority
             for slot_name, node_list in self.mapping.items():
                 is_set = root_slot.children[slot_name].is_set()(ctx, actor)
                 if is_set is True:
                     continue
-
+                print("nodes for slot: ", node_list, sep=" ")
+                print("node cache: ", self._node_cache, sep=" ")
                 filtered_node_list = [
                     node for node in node_list if self._node_cache.get(node, 0) <= self.allowed_repeats
                 ]  # assert that the visit limit has not been reached for all of the nodes.
-                if len(filtered_node_list) == 0:
-                    self._is_fillable = False
+                print("nodes not in cache: ", filtered_node_list, sep=" ")
+                # if len(filtered_node_list) == 0:
+                #     self._is_fillable = False
+                #     return lbl.to_fallback(-inf)(ctx, actor)
 
-                chosen_node = choice(filtered_node_list)
-                self._node_cache.update([chosen_node])  # update visit counts
+                # chosen_node = choice(filtered_node_list)
+                chosen_node = choice(filtered_node_list or node_list)
+                if not ctx.validation:
+                    self._node_cache.update([chosen_node])  # update visit counts
+                print((*chosen_node, current_priority))
                 return (*chosen_node, current_priority)
 
         return to_next_slot_inner
+
+    def is_active(self):
+        """
+        This method produces a df_engine condition that yields `True` if the state of the form has been set to
+        'active' or `False` otherwise.
+        """
+
+        @requires_storage("Form storage has not been registered.", storage_key=FORM_STORAGE_KEY, return_val=False)
+        def is_active_inner(ctx: Context, actor: Actor) -> bool:
+            state = ctx.framework_states[FORM_STORAGE_KEY].get(self.name, FormState.INACTIVE)
+            return state == FormState.ACTIVE
+
+        return is_active_inner
 
     @validate_arguments
     def update_form_state(self, state: Optional[FormState] = None):
@@ -150,10 +165,15 @@ class Form(BaseModel):
                 return ctx
 
             if self.name not in ctx.framework_states[FORM_STORAGE_KEY]:
-                ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.inactive
+                ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.INACTIVE
+                return ctx
 
-            if self._is_fillable is False or is_set_all(list(self.mapping.keys()))(ctx, actor) is True:
-                ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.finished
+            if self._is_fillable is False:
+                ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.FAILED
+                return ctx
+
+            if is_set_all(list(self.mapping.keys()))(ctx, actor) is True:
+                ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.COMPLETE
             return ctx
 
         return update_inner
@@ -164,12 +184,3 @@ class Form(BaseModel):
             return get_values(ctx, actor, slots)
 
         return get_values_inner
-
-    @validator("mapping")
-    def validate_mapping(cls, mapping: dict) -> dict:
-        if len(mapping) == 0:
-            raise ValidationError("Form should include at least one slot.")
-        for key, value in mapping.items():
-            if key not in root_slot.children:
-                raise ValidationError(f"Slot {key} has not been defined")
-        return mapping

@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 import logging
 from copy import copy
 from collections.abc import Iterable
-from typing import Callable, Optional, Any, Dict, Union, List
+from typing import Callable, Optional, Any, Dict, Union, Pattern
 
 from df_engine.core import Context, Actor
 
@@ -233,8 +233,8 @@ class RegexpSlot(ValueSlot):
 
     """
 
-    regexp: Optional[re.Pattern] = Field(default=None, alias="regexp")
-    target_group: int = 0
+    regexp: Optional[Pattern] = Field(alias="regexp")
+    match_group_idx: int = 0
 
     @validator("regexp", pre=True)
     def val_regexp(cls, reg):
@@ -255,7 +255,7 @@ class RegexpSlot(ValueSlot):
 
     def extract_value(self, ctx: Context, actor: Actor):
         search = re.search(self.regexp, ctx.last_request)
-        self.value = search.group(self.target_group) if search else None
+        self.value = search.group(self.match_group_idx) if search else None
         return self.value
 
 

@@ -3,6 +3,7 @@ import sys
 import pytest
 
 from df_slots import GroupSlot, RegexpSlot, RootSlot
+from df_slots.root import add_slots
 
 
 def test_nesting(root: RootSlot):
@@ -12,7 +13,7 @@ def test_nesting(root: RootSlot):
     cat_data = GroupSlot(name="cat_data", children=[name])
     cat = GroupSlot(name="cat", children=[cat_data])
     root.children.clear()
-    root.register_slots([cat])
+    add_slots([cat])
     assert sorted(root.children.keys()) == [
         "cat",
         "cat/cat_data",
@@ -30,7 +31,7 @@ def test_nesting_2(root: RootSlot):
     common = GroupSlot(name="common", children=[first, last])
     just_name = RegexpSlot(name="name", regexp=".+")
     root.children.clear()
-    root.register_slots([just_name, common])
+    add_slots([just_name, common])
     assert sorted(root.children.keys()) == [
         "common",
         "common/first",
