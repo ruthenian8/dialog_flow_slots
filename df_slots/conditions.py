@@ -6,12 +6,15 @@ Functions from this module allow you to condition graph transitions depending on
 from typing import Dict, List, Callable
 from functools import partial
 
+from pydantic import validate_arguments
+
 from df_engine.core import Context, Actor
 
 from .root import root_slot
 from .utils import requires_storage
 
 
+@validate_arguments
 def is_set(slots: List[str], use_all: bool = True, use_any: bool = False) -> Callable:
     """
     Check, if any of the passed slots have been set.
@@ -45,6 +48,7 @@ is_set_any = partial(is_set, use_any=True, use_all=False)
 is_set_any.__doc__ = is_set.__doc__
 
 
+@validate_arguments
 def set_like_mask(mask: Dict[str, bool]) -> Callable[[Context, Actor], bool]:
     """
     Check, if the state of one or more slots corresponds to a dict-based boolean mask.

@@ -6,12 +6,15 @@ They produce the response that will be ultimately given to the user.
 """
 from typing import Union, Optional, List
 
+from pydantic import validate_arguments
+
 from df_generics import Response
 from df_engine.core import Context, Actor
 
 from .handlers import get_filled_template
 
 
+@validate_arguments
 def fill_template(template: Union[str, Response], slots: Optional[List[str]] = None):
     """
     Fill a template with slot values.

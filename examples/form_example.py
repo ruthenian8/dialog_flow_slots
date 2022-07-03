@@ -39,64 +39,48 @@ script = {
         TRANSITIONS: {
             RestaurantForm.to_next_label(1.1): RestaurantForm.has_state(FormState.ACTIVE),
         },
+        PRE_TRANSITIONS_PROCESSING: {
+            "extract_cuisine": slot_procs.extract([RestaurantCuisine.name]),
+            "extract_address": slot_procs.extract([RestaurantAddress.name]),
+            "extract_number": slot_procs.extract([NumberOfPeople.name]),
+            "update_form_state": RestaurantForm.update_state(),
+        },
     },
     "restaurant": {
         LOCAL: {
             TRANSITIONS: {
-                ("chitchat", "chat_3", 0.9): cnd.any([
-                    RestaurantForm.has_state(FormState.FAILED),
-                    RestaurantForm.has_state(FormState.INACTIVE)
-                ]),
-                ("restaurant", "form_filled", 0.9): RestaurantForm.has_state(FormState.COMPLETE)
+                ("chitchat", "chat_3", 0.9): cnd.any(
+                    [RestaurantForm.has_state(FormState.FAILED), RestaurantForm.has_state(FormState.INACTIVE)]
+                ),
+                ("restaurant", "form_filled", 0.9): RestaurantForm.has_state(FormState.COMPLETE),
             }  # this transition ensures the form loop can be left
         },
         "offer": {
             RESPONSE: slot_rsp.fill_template("Would you like me to find a {cuisine} restaurant?"),
-            TRANSITIONS: {
-                lbl.forward(1.1): cnd.regexp(r"[yY]es|[yY]eah|[Oo][Kk]|[Ff]ine")
-            },
+            TRANSITIONS: {lbl.forward(1.1): cnd.regexp(r"[yY]es|[yY]eah|[Oo][Kk]|[Ff]ine")},
             PRE_TRANSITIONS_PROCESSING: {
-                "reset_form": RestaurantForm.update_form_state(FormState.INACTIVE),
-                "reset_slots": slot_procs.unset(
-                    [
-                        RestaurantAddress.name,
-                        NumberOfPeople.name
-                    ]
-                )
-            } # Explicitly resetting form and slot states in case the user returns to the node after one order
+                "reset_form": RestaurantForm.update_state(FormState.INACTIVE),
+                "reset_slots": slot_procs.unset([RestaurantAddress.name, NumberOfPeople.name]),
+            },  # Explicitly resetting form and slot states in case the user returns to the node after one order
         },
         "offer_accepted": {
             RESPONSE: "Very well then, processing your request.",
             PRE_TRANSITIONS_PROCESSING: {
-                "activate_form": RestaurantForm.update_form_state(df_slots.FormState.ACTIVE),
-            }
+                "activate_form": RestaurantForm.update_state(df_slots.FormState.ACTIVE),
+            },
         },
         "form_filled": {
             RESPONSE: "All done, the table will be reserved in due time",
-            TRANSITIONS: {
-                ("chitchat", "chat_3", 1.1): cnd.true()
-            }
+            TRANSITIONS: {("chitchat", "chat_3", 1.1): cnd.true()},
         },
         "cuisine": {
             RESPONSE: "What kind of cuisine would you like to have?",
-            PRE_TRANSITIONS_PROCESSING: {
-                "extraction": slot_procs.extract([RestaurantCuisine.name]),
-                "update_form_state": RestaurantForm.update_form_state()
-            },
         },
         "address": {
             RESPONSE: "In what area would you like to find a restaurant?",
-            PRE_TRANSITIONS_PROCESSING: {
-                "extraction": slot_procs.extract([RestaurantAddress.name]),
-                "update_form_state": RestaurantForm.update_form_state()
-            },
         },
         "number": {
             RESPONSE: "How many people would you like to invite?",
-            PRE_TRANSITIONS_PROCESSING: {
-                "extraction": slot_procs.extract([NumberOfPeople.name]),
-                "update_form_state": RestaurantForm.update_form_state()
-            },
         },
     },
     "chitchat": {
@@ -104,31 +88,20 @@ script = {
         "chat_1": {RESPONSE: "How's life?"},
         "chat_2": {
             RESPONSE: "What kind of cuisine do you like?",
-            PRE_TRANSITIONS_PROCESSING: {
-                "extraction": slot_procs.extract([RestaurantCuisine.name]),
-            },
             TRANSITIONS: {
                 ("restaurant", "offer", 1.2): slot_cnd.is_set_all(["cuisine"]),
-                ("chitchat", "chat_3", 1.1): cnd.true()
-            }
+                ("chitchat", "chat_3", 1.1): cnd.true(),
+            },
         },
         "chat_3": {
             RESPONSE: "Did you like the latest Star Wars film?",
-            TRANSITIONS: {
-                lbl.to_fallback(1.1): cnd.true()
-            }
+            TRANSITIONS: {lbl.to_fallback(1.1): cnd.true()},
         },
         "chat_4": {RESPONSE: "Who do you think will win the Champions League?"},
     },
     "root": {
-        "start": {
-            RESPONSE: "",
-            TRANSITIONS: {("chitchat", "chat_1", 2): cnd.true()}
-        },
-        "fallback": {
-            RESPONSE: "Nice chatting with you!",
-            TRANSITIONS: {("chitchat", "chat_1", 2): cnd.true()}
-        },
+        "start": {RESPONSE: "", TRANSITIONS: {("chitchat", "chat_1", 2): cnd.true()}},
+        "fallback": {RESPONSE: "Nice chatting with you!", TRANSITIONS: {("chitchat", "chat_1", 2): cnd.true()}},
     },
 }
 

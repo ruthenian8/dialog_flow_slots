@@ -6,6 +6,8 @@ This module encapsulates operations that can be done to slots during the process
 import logging
 from typing import Optional, Union, List, Callable
 
+from pydantic import validate_arguments
+
 from df_engine.core import Context, Actor
 from df_generics import Response
 
@@ -14,6 +16,7 @@ from .handlers import get_filled_template, extract as extract_handler, unset as 
 logger = logging.getLogger(__name__)
 
 
+@validate_arguments
 def extract(slots: Optional[List[str]]) -> Callable:
     """
     Extract slots from a specified list.
@@ -33,6 +36,7 @@ def extract(slots: Optional[List[str]]) -> Callable:
     return extract_inner
 
 
+@validate_arguments
 def unset(slots: Optional[List[str]] = None):
     def unset_inner(ctx: Context, actor: Actor) -> Context:
         unset_handler(ctx, actor, slots)
@@ -41,6 +45,7 @@ def unset(slots: Optional[List[str]] = None):
     return unset_inner
 
 
+@validate_arguments
 def fill_template(slots: Optional[List[str]] = None):
     """
     Fill the response template in the current node.

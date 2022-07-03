@@ -45,18 +45,16 @@ class FormPolicy(BaseModel):
         script = {
             GLOBAL: {
                 TRANSITIONS: {
-                    form_1.to_next_slot(0.1): cnd.true()
+                    form_1.to_next_slot(0.1): form_1.has_state(FormState.ACTIVE)
                 },
                 PRE_TRANSITION_PROCESSING: {
+                    "extract_1": slot_procs.extract([slot_1.name])
                     "proc_1": form_1.update_form_state()
                 }
             }
             "flow_1": {
                 "node_1": {
                     RESPONSE: "Some response",
-                    PRE_TRANSITION_PROCESSING: {
-                        "extraction": slot_proc.extract([slot_1.name])
-                    }
                 }
             }
         }
@@ -92,9 +90,7 @@ class FormPolicy(BaseModel):
 
     @validate_arguments
     def to_next_label(
-        self,
-        priority: Optional[float] = None,
-        fallback_node: Optional[Union[NodeLabel2Type, NodeLabel3Type]] = None
+        self, priority: Optional[float] = None, fallback_node: Optional[Union[NodeLabel2Type, NodeLabel3Type]] = None
     ) -> Callable[[Context, Actor], NodeLabel3Type]:
         """
         This method checks, if all slots from the form have been set and returns transitions to required nodes,
@@ -130,7 +126,6 @@ class FormPolicy(BaseModel):
 
                 if not ctx.validation:
                     self._node_cache.update([chosen_node])  # update visit counts
-                print((*chosen_node, current_priority))
                 return (*chosen_node, current_priority)
 
         return to_next_label_inner
@@ -138,9 +133,9 @@ class FormPolicy(BaseModel):
     @validate_arguments
     def has_state(self, state: FormState):
         """
-        This method produces a df_engine condition that yields `True` if the state of the form 
+        This method produces a df_engine condition that yields `True` if the state of the form
         equals the passed :class:`~FormState` or `False` otherwise.
-        
+
         Parameters
         -----------
 
@@ -157,7 +152,7 @@ class FormPolicy(BaseModel):
         return is_active_inner
 
     @validate_arguments
-    def update_form_state(self, state: Optional[FormState] = None):
+    def update_state(self, state: Optional[FormState] = None):
         """
         This method updates the form state that is stored in the context.
         It has a twofold application.
@@ -185,12 +180,10 @@ class FormPolicy(BaseModel):
                 ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.INACTIVE
                 return ctx
 
-            print("fillable:", self._is_fillable, sep=" ")
             if self._is_fillable is False:
                 ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.FAILED
                 return ctx
 
-            print("is_set:", is_set_all(self.mapping)(ctx, actor), sep=" ")
             if is_set_all(list(self.mapping.keys()))(ctx, actor) is True:
                 ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.COMPLETE
             return ctx
