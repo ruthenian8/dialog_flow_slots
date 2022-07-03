@@ -3,7 +3,7 @@ Forms
 ---------------------------
 This module holds the :class:`~Form` class that can be used to create a global form-filling policy.
 """
-from typing import Optional, Callable, List, Dict
+from typing import Optional, Callable, List, Dict, Union
 from enum import Enum, auto
 from random import choice
 from math import inf
@@ -90,7 +90,12 @@ class FormPolicy(BaseModel):
         """
         super().__init__(name=name, mapping=mapping, allowed_repeats=allowed_repeats, **data)
 
-    def to_next_label(self, priority: Optional[float] = None) -> Callable[[Context, Actor], NodeLabel3Type]:
+    @validate_arguments
+    def to_next_label(
+        self,
+        priority: Optional[float] = None,
+        fallback_node: Optional[Union[NodeLabel2Type, NodeLabel3Type]] = None
+    ) -> Callable[[Context, Actor], NodeLabel3Type]:
         """
         This method checks, if all slots from the form have been set and returns transitions to required nodes,
         if there remain any. Returns an always ignored transition otherwise.
@@ -104,41 +109,50 @@ class FormPolicy(BaseModel):
 
         """
 
-        def to_next_slot_inner(ctx: Context, actor: Actor) -> NodeLabel3Type:
+        def to_next_label_inner(ctx: Context, actor: Actor) -> NodeLabel3Type:
             current_priority = priority or actor.label_priority
             for slot_name, node_list in self.mapping.items():
                 is_set = root_slot.children[slot_name].is_set()(ctx, actor)
                 if is_set is True:
                     continue
-                print("nodes for slot: ", node_list, sep=" ")
-                print("node cache: ", self._node_cache, sep=" ")
+
                 filtered_node_list = [
                     node for node in node_list if self._node_cache.get(node, 0) <= self.allowed_repeats
                 ]  # assert that the visit limit has not been reached for all of the nodes.
-                print("nodes not in cache: ", filtered_node_list, sep=" ")
-                # if len(filtered_node_list) == 0:
-                #     self._is_fillable = False
-                #     return lbl.to_fallback(-inf)(ctx, actor)
 
-                # chosen_node = choice(filtered_node_list)
-                chosen_node = choice(filtered_node_list or node_list)
+                if len(filtered_node_list) == 0:
+                    self._is_fillable = False
+                    if fallback_node:
+                        return fallback_node
+                    return lbl.to_fallback(-inf)(ctx, actor)
+
+                chosen_node = choice(filtered_node_list)
+
                 if not ctx.validation:
                     self._node_cache.update([chosen_node])  # update visit counts
                 print((*chosen_node, current_priority))
                 return (*chosen_node, current_priority)
 
-        return to_next_slot_inner
+        return to_next_label_inner
 
-    def is_active(self):
+    @validate_arguments
+    def has_state(self, state: FormState):
         """
-        This method produces a df_engine condition that yields `True` if the state of the form has been set to
-        'active' or `False` otherwise.
+        This method produces a df_engine condition that yields `True` if the state of the form 
+        equals the passed :class:`~FormState` or `False` otherwise.
+        
+        Parameters
+        -----------
+
+        state: :class:`~FormState`
+            Target state to check for.
+
         """
 
         @requires_storage("Form storage has not been registered.", storage_key=FORM_STORAGE_KEY, return_val=False)
         def is_active_inner(ctx: Context, actor: Actor) -> bool:
-            state = ctx.framework_states[FORM_STORAGE_KEY].get(self.name, FormState.INACTIVE)
-            return state == FormState.ACTIVE
+            true_state = ctx.framework_states[FORM_STORAGE_KEY].get(self.name, FormState.INACTIVE)
+            return true_state == state
 
         return is_active_inner
 
@@ -160,6 +174,9 @@ class FormPolicy(BaseModel):
             if not ctx.validation and FORM_STORAGE_KEY not in ctx.framework_states:
                 raise ValueError("Form storage has not been registered.")
 
+            # print("forms:", ctx.framework_states.get("forms", {}), sep=" ")
+            print("slots:", ctx.framework_states.get("slots", {}), sep=" ")
+
             if state:
                 ctx.framework_states[FORM_STORAGE_KEY][self.name] = state
                 return ctx
@@ -168,10 +185,12 @@ class FormPolicy(BaseModel):
                 ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.INACTIVE
                 return ctx
 
+            print("fillable:", self._is_fillable, sep=" ")
             if self._is_fillable is False:
                 ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.FAILED
                 return ctx
 
+            print("is_set:", is_set_all(self.mapping)(ctx, actor), sep=" ")
             if is_set_all(list(self.mapping.keys()))(ctx, actor) is True:
                 ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.COMPLETE
             return ctx
