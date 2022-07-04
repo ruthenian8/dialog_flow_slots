@@ -21,8 +21,8 @@ def is_unrelated_intent(ctx, actor):
     return False
 
 
-RestaurantCuisine = df_slots.RegexpSlot(name="cuisine", regexp=r"([A-Za-z]+) cuisine", target_group=1)
-RestaurantAddress = df_slots.RegexpSlot(name="restaurantaddress", regexp=r"at (.+)|in (.+)", target_group=1)
+RestaurantCuisine = df_slots.RegexpSlot(name="cuisine", regexp=r"([A-Za-z]+) cuisine", match_group_idx=1)
+RestaurantAddress = df_slots.RegexpSlot(name="restaurantaddress", regexp=r"(at|in) (.+)", match_group_idx=2)
 NumberOfPeople = df_slots.RegexpSlot(name="numberofpeople", regexp=r"[0-9]+")
 RestaurantForm = df_slots.FormPolicy(
     "restaurant",
@@ -51,12 +51,12 @@ script = {
             TRANSITIONS: {
                 ("chitchat", "chat_3", 0.9): cnd.any(
                     [RestaurantForm.has_state(FormState.FAILED), RestaurantForm.has_state(FormState.INACTIVE)]
-                ),
+                ), # this transition ensures the form loop can be left
                 ("restaurant", "form_filled", 0.9): RestaurantForm.has_state(FormState.COMPLETE),
-            }  # this transition ensures the form loop can be left
+            }  
         },
         "offer": {
-            RESPONSE: slot_rsp.fill_template("Would you like me to find a {cuisine} restaurant?"),
+            RESPONSE: slot_rsp.fill_template("Would you like me to find a {cuisine} cuisine restaurant?"),
             TRANSITIONS: {lbl.forward(1.1): cnd.regexp(r"[yY]es|[yY]eah|[Oo][Kk]|[Ff]ine")},
             PRE_TRANSITIONS_PROCESSING: {
                 "reset_form": RestaurantForm.update_state(FormState.INACTIVE),
@@ -70,7 +70,7 @@ script = {
             },
         },
         "form_filled": {
-            RESPONSE: "All done, the table will be reserved in due time",
+            RESPONSE: slot_rsp.fill_template("All done, a table for {numberofpeople} people will be reserved in due time"),
             TRANSITIONS: {("chitchat", "chat_3", 1.1): cnd.true()},
         },
         "cuisine": {
@@ -121,7 +121,7 @@ testing_dialog = [
     ("yes", "Very well then, processing your request."),
     ("ok", "In what area would you like to find a restaurant?"),
     ("in London", "How many people would you like to invite?"),
-    ("3 people", "All done, the table will be reserved in due time"),
+    ("3 people", "All done, a table for 3 people will be reserved in due time"),
     ("ok", "Did you like the latest Star Wars film?"),
     ("yes", "Nice chatting with you!"),
 ]

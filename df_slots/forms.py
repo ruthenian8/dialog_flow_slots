@@ -64,7 +64,6 @@ class FormPolicy(BaseModel):
     name: str
     mapping: Dict[str, List[NodeLabel2Type]] = Field(default_factory=dict)
     allowed_repeats: int = Field(default=0, gt=-1)
-    _is_fillable: bool = PrivateAttr(default=True)
     _node_cache: Dict[NodeLabel2Type, int] = PrivateAttr(default_factory=Counter)
 
     def __init__(self, name: str, mapping: Dict[str, List[NodeLabel2Type]], *, allowed_repeats: int = 0, **data):
@@ -117,16 +116,19 @@ class FormPolicy(BaseModel):
                 ]  # assert that the visit limit has not been reached for all of the nodes.
 
                 if len(filtered_node_list) == 0:
-                    self._is_fillable = False
-                    if fallback_node:
-                        return fallback_node
-                    return lbl.to_fallback(-inf)(ctx, actor)
+                    _ = self.update_state(FormState.FAILED)(ctx, actor)
+                    fallback = fallback_node if fallback_node else lbl.to_fallback(-inf)(ctx, actor)
+                    return fallback
 
                 chosen_node = choice(filtered_node_list)
 
                 if not ctx.validation:
                     self._node_cache.update([chosen_node])  # update visit counts
                 return (*chosen_node, current_priority)
+            
+            _ = self.update_state(FormState.COMPLETE)(ctx, actor)
+            fallback = fallback_node if fallback_node else lbl.to_fallback(-inf)(ctx, actor)
+            return fallback
 
         return to_next_label_inner
 
@@ -169,19 +171,12 @@ class FormPolicy(BaseModel):
             if not ctx.validation and FORM_STORAGE_KEY not in ctx.framework_states:
                 raise ValueError("Form storage has not been registered.")
 
-            # print("forms:", ctx.framework_states.get("forms", {}), sep=" ")
-            print("slots:", ctx.framework_states.get("slots", {}), sep=" ")
-
             if state:
                 ctx.framework_states[FORM_STORAGE_KEY][self.name] = state
                 return ctx
 
             if self.name not in ctx.framework_states[FORM_STORAGE_KEY]:
                 ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.INACTIVE
-                return ctx
-
-            if self._is_fillable is False:
-                ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.FAILED
                 return ctx
 
             if is_set_all(list(self.mapping.keys()))(ctx, actor) is True:
