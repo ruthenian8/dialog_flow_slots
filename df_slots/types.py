@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 import logging
 from copy import copy
 from collections.abc import Iterable
-from typing import Callable, Optional, Any, Dict, Union, Pattern
+from typing import Callable, Any, Dict, Union
 
 from df_engine.core import Context, Actor
 
@@ -233,21 +233,8 @@ class RegexpSlot(ValueSlot):
 
     """
 
-    regexp: Optional[Pattern] = Field(alias="regexp")
+    regexp: str
     match_group_idx: int = 0
-
-    @validator("regexp", pre=True)
-    def val_regexp(cls, reg):
-        if isinstance(reg, str):
-            val = re.compile(reg)
-            def re_deep(*args, **kwargs):
-                return re.compile(reg)
-            try:
-                val.__deepcopy__ = re_deep
-            except AttributeError:
-                pass
-            return val
-        return reg
 
     def fill_template(self, template: str) -> Callable:
         def fill_inner(ctx: Context, actor: Actor):
