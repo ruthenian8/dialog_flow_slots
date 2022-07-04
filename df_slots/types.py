@@ -239,7 +239,14 @@ class RegexpSlot(ValueSlot):
     @validator("regexp", pre=True)
     def val_regexp(cls, reg):
         if isinstance(reg, str):
-            return re.compile(reg)
+            val = re.compile(reg)
+            def re_deep(*args, **kwargs):
+                return re.compile(reg)
+            try:
+                val.__deepcopy__ = re_deep
+            except AttributeError:
+                pass
+            return val
         return reg
 
     def fill_template(self, template: str) -> Callable:
