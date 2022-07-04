@@ -9,5 +9,5 @@ from . import response
 from . import processing
 
 __author__ = "Denis Kuznetsov"
-__email__ = "ruthenian8@gmail.com"
+__email__ = "kuznetsov.den.p@gmail.com"
 __version__ = "0.1.0"
