@@ -21,9 +21,10 @@ def extract(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) -> li
     If the value of a particular slot cannot be extracted, None is included instead.
     If `slots` argument is not provided, all slots will be extracted and returned.
 
-    :return: A list of extracted values. If a list of slot names has been passed,
-    the list of values is guaranteed to be of the same length.
-    Otherwise, the length equals the number of all non-child slots.
+    :return: A list of extracted values.
+        If a list of slot names has been passed,
+        the list of values is guaranteed to be of the same length.
+        Otherwise, the length equals the number of all non-child slots.
 
     Parameters
     ----------
@@ -35,6 +36,7 @@ def extract(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) -> li
     slots: Optional[List[str]]
         List of slot names to extract.
         Names of slots inside groups should be prefixed with group names, separated by '/': profile/username.
+
     """
     target_names = slots or [key for key in root.children.keys() if "/" not in key]
 
@@ -50,10 +52,11 @@ def extract(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) -> li
             continue
         target_slot: BaseSlot = root.children.get(name)
         val = target_slot.extract_value(ctx, actor)
-        if isinstance(target_slot, GroupSlot):
-            ctx.framework_states[SLOT_STORAGE_KEY].update(val)
-        else:
-            ctx.framework_states[SLOT_STORAGE_KEY][name] = val
+        if not target_slot.is_set()(ctx, actor):
+            if isinstance(target_slot, GroupSlot):
+                ctx.framework_states[SLOT_STORAGE_KEY].update(val)
+            else:
+                ctx.framework_states[SLOT_STORAGE_KEY][name] = val
         results.append(val)
 
     return results
@@ -64,9 +67,10 @@ def get_values(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) ->
     Get values of the specified slots, assuming that they have been extracted beforehand.
     If slot argument is omitted, values of all slots will be returned.
 
-    :return: A list of values. If a list of slot names has been passed,
-    the list of values is guaranteed to be of the same length.
-    Otherwise, the length equals the number of all non-child slots.
+    :return: A list of values.
+        If a list of slot names has been passed,
+        the list of values is guaranteed to be of the same length.
+        Otherwise, the length equals the number of all non-child slots.
 
     Parameters
     ----------
@@ -78,6 +82,7 @@ def get_values(ctx: Context, actor: Actor, slots: Optional[List[str]] = None) ->
     slots: Optional[List[str]]
         List of slot names to extract.
         Names of slots inside groups should be prefixed with group names, separated by '/': profile/username.
+
     """
     target_names = slots or [key for key in root.children.keys() if "/" not in key]
 

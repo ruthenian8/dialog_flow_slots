@@ -3,7 +3,7 @@ Forms
 ---------------------------
 This module holds the :class:`~Form` class that can be used to create a global form-filling policy.
 """
-from typing import Optional, Callable, List, Dict
+from typing import Optional, Callable, List, Dict, Union
 from enum import Enum, auto
 from random import choice
 from math import inf
@@ -45,18 +45,16 @@ class FormPolicy(BaseModel):
         script = {
             GLOBAL: {
                 TRANSITIONS: {
-                    form_1.to_next_slot(0.1): cnd.true()
+                    form_1.to_next_slot(0.1): form_1.has_state(FormState.ACTIVE)
                 },
                 PRE_TRANSITION_PROCESSING: {
+                    "extract_1": slot_procs.extract([slot_1.name])
                     "proc_1": form_1.update_form_state()
                 }
             }
             "flow_1": {
                 "node_1": {
                     RESPONSE: "Some response",
-                    PRE_TRANSITION_PROCESSING: {
-                        "extraction": slot_proc.extract([slot_1.name])
-                    }
                 }
             }
         }
@@ -66,7 +64,6 @@ class FormPolicy(BaseModel):
     name: str
     mapping: Dict[str, List[NodeLabel2Type]] = Field(default_factory=dict)
     allowed_repeats: int = Field(default=0, gt=-1)
-    _is_fillable: bool = PrivateAttr(default=True)
     _node_cache: Dict[NodeLabel2Type, int] = PrivateAttr(default_factory=Counter)
 
     def __init__(self, name: str, mapping: Dict[str, List[NodeLabel2Type]], *, allowed_repeats: int = 0, **data):
@@ -90,7 +87,10 @@ class FormPolicy(BaseModel):
         """
         super().__init__(name=name, mapping=mapping, allowed_repeats=allowed_repeats, **data)
 
-    def to_next_label(self, priority: Optional[float] = None) -> Callable[[Context, Actor], NodeLabel3Type]:
+    @validate_arguments
+    def to_next_label(
+        self, priority: Optional[float] = None, fallback_node: Optional[Union[NodeLabel2Type, NodeLabel3Type]] = None
+    ) -> Callable[[Context, Actor], NodeLabel3Type]:
         """
         This method checks, if all slots from the form have been set and returns transitions to required nodes,
         if there remain any. Returns an always ignored transition otherwise.
@@ -104,46 +104,57 @@ class FormPolicy(BaseModel):
 
         """
 
-        def to_next_slot_inner(ctx: Context, actor: Actor) -> NodeLabel3Type:
+        def to_next_label_inner(ctx: Context, actor: Actor) -> NodeLabel3Type:
             current_priority = priority or actor.label_priority
             for slot_name, node_list in self.mapping.items():
                 is_set = root_slot.children[slot_name].is_set()(ctx, actor)
                 if is_set is True:
                     continue
-                print("nodes for slot: ", node_list, sep=" ")
-                print("node cache: ", self._node_cache, sep=" ")
+
                 filtered_node_list = [
                     node for node in node_list if self._node_cache.get(node, 0) <= self.allowed_repeats
                 ]  # assert that the visit limit has not been reached for all of the nodes.
-                print("nodes not in cache: ", filtered_node_list, sep=" ")
-                # if len(filtered_node_list) == 0:
-                #     self._is_fillable = False
-                #     return lbl.to_fallback(-inf)(ctx, actor)
 
-                # chosen_node = choice(filtered_node_list)
-                chosen_node = choice(filtered_node_list or node_list)
+                if len(filtered_node_list) == 0:
+                    _ = self.update_state(FormState.FAILED)(ctx, actor)
+                    fallback = fallback_node if fallback_node else lbl.to_fallback(-inf)(ctx, actor)
+                    return fallback
+
+                chosen_node = choice(filtered_node_list)
+
                 if not ctx.validation:
                     self._node_cache.update([chosen_node])  # update visit counts
-                print((*chosen_node, current_priority))
                 return (*chosen_node, current_priority)
+            
+            _ = self.update_state(FormState.COMPLETE)(ctx, actor)
+            fallback = fallback_node if fallback_node else lbl.to_fallback(-inf)(ctx, actor)
+            return fallback
 
-        return to_next_slot_inner
+        return to_next_label_inner
 
-    def is_active(self):
+    @validate_arguments
+    def has_state(self, state: FormState):
         """
-        This method produces a df_engine condition that yields `True` if the state of the form has been set to
-        'active' or `False` otherwise.
+        This method produces a df_engine condition that yields `True` if the state of the form
+        equals the passed :class:`~FormState` or `False` otherwise.
+
+        Parameters
+        -----------
+
+        state: :class:`~FormState`
+            Target state to check for.
+
         """
 
         @requires_storage("Form storage has not been registered.", storage_key=FORM_STORAGE_KEY, return_val=False)
         def is_active_inner(ctx: Context, actor: Actor) -> bool:
-            state = ctx.framework_states[FORM_STORAGE_KEY].get(self.name, FormState.INACTIVE)
-            return state == FormState.ACTIVE
+            true_state = ctx.framework_states[FORM_STORAGE_KEY].get(self.name, FormState.INACTIVE)
+            return true_state == state
 
         return is_active_inner
 
     @validate_arguments
-    def update_form_state(self, state: Optional[FormState] = None):
+    def update_state(self, state: Optional[FormState] = None):
         """
         This method updates the form state that is stored in the context.
         It has a twofold application.
@@ -166,10 +177,6 @@ class FormPolicy(BaseModel):
 
             if self.name not in ctx.framework_states[FORM_STORAGE_KEY]:
                 ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.INACTIVE
-                return ctx
-
-            if self._is_fillable is False:
-                ctx.framework_states[FORM_STORAGE_KEY][self.name] = FormState.FAILED
                 return ctx
 
             if is_set_all(list(self.mapping.keys()))(ctx, actor) is True:

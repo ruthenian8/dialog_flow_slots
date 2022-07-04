@@ -104,7 +104,11 @@ script = {
     },
     "root": {
         "start": {RESPONSE: "", TRANSITIONS: {("pet_flow", "ask"): cnd.true()}},
-        "fallback": {RESPONSE: "It's been a nice talk! See you.", TRANSITIONS: {("pet_flow", "ask"): cnd.true()}},
+        "fallback": {
+            RESPONSE: "It's been a nice talk! See you.",
+            TRANSITIONS: {("pet_flow", "ask"): cnd.true()},
+            PRE_TRANSITIONS_PROCESSING: {"forget": slot_procs.unset(["pet"])},
+        },
         "esteem": {
             RESPONSE: custom_esteem,
             TRANSITIONS: {("root", "fallback"): cnd.true()},

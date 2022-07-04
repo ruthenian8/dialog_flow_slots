@@ -19,6 +19,7 @@ from examples.example_utils import run_test
         "examples.generics_example",
         # "examples.basic_example",
         "examples.handlers_example",
+        "examples.form_example",
     ],
 )
 def test_examples(module_name, root):
