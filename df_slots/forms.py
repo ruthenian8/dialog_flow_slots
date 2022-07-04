@@ -125,7 +125,7 @@ class FormPolicy(BaseModel):
                 if not ctx.validation:
                     self._node_cache.update([chosen_node])  # update visit counts
                 return (*chosen_node, current_priority)
-            
+
             _ = self.update_state(FormState.COMPLETE)(ctx, actor)
             fallback = fallback_node if fallback_node else lbl.to_fallback(-inf)(ctx, actor)
             return fallback

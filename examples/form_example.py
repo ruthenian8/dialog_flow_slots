@@ -51,9 +51,9 @@ script = {
             TRANSITIONS: {
                 ("chitchat", "chat_3", 0.9): cnd.any(
                     [RestaurantForm.has_state(FormState.FAILED), RestaurantForm.has_state(FormState.INACTIVE)]
-                ), # this transition ensures the form loop can be left
+                ),  # this transition ensures the form loop can be left
                 ("restaurant", "form_filled", 0.9): RestaurantForm.has_state(FormState.COMPLETE),
-            }  
+            }
         },
         "offer": {
             RESPONSE: slot_rsp.fill_template("Would you like me to find a {cuisine} cuisine restaurant?"),
@@ -70,7 +70,9 @@ script = {
             },
         },
         "form_filled": {
-            RESPONSE: slot_rsp.fill_template("All done, a table for {numberofpeople} people will be reserved in due time"),
+            RESPONSE: slot_rsp.fill_template(
+                "All done, a table for {numberofpeople} people will be reserved in due time"
+            ),
             TRANSITIONS: {("chitchat", "chat_3", 1.1): cnd.true()},
         },
         "cuisine": {
